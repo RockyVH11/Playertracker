@@ -1,0 +1,21 @@
+---
+description: Follow Git best practices and bump app version on main releases
+alwaysApply: true
+---
+
+# Git and Versioning Release Rule
+
+- Use feature branches for all work; avoid direct commits to `main`.
+- Before merging to `main`, ensure tests and build pass locally.
+- Keep commits focused and descriptive; explain intent in commit body.
+- Open a PR (or equivalent review step) before merging to `main`.
+
+## Version bump requirement
+
+- On every merge/push to `main`, increment app version in:
+  - `site/src/config/appVersion.ts`
+- Follow semantic progression:
+  - patch: `1.0` -> `1.0.1` for fixes
+  - minor: `1.0.1` -> `1.1.0` for features
+  - major: `1.1.0` -> `2.0.0` for breaking changes
+- Include the version bump in the same release commit/PR so deployed UI always shows the correct version.

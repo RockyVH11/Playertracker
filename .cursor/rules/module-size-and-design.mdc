@@ -1,0 +1,13 @@
+---
+description: Keep modules small and responsibilities clear
+alwaysApply: true
+---
+
+# Module Size and Design
+
+- Target <= 250 lines per file; avoid > 400 lines without explicit justification.
+- Target <= 40 lines per function where practical.
+- Apply single responsibility per function/module.
+- Extract helpers/components/hooks when complexity grows.
+- Prefer clear, domain-oriented naming over generic utility naming.
+- Reduce duplication instead of copying logic across files.

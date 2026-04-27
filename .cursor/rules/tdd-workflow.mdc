@@ -1,0 +1,12 @@
+---
+description: Enforce TDD-first workflow and testing expectations
+alwaysApply: true
+---
+
+# TDD Workflow
+
+- Default to TDD: test first, implementation second, refactor third.
+- For each behavior change, add or update at least one automated test.
+- Keep tests readable: arrange, act, assert with clear intent.
+- Prefer deterministic tests (no flaky timers/network dependencies).
+- If tests cannot be added immediately, document why and add a follow-up task.

@@ -1,0 +1,21 @@
+---
+description: Apply AI-judge quality and safety checks before completion
+alwaysApply: true
+---
+
+# Quality and Safety Gate
+
+Before finalizing any task, verify:
+
+1. Tests exist and pass for changed behavior.
+2. Complexity and duplication did not increase without need.
+3. Boundaries and contracts are explicit for shared data.
+4. No secrets or credentials are hardcoded.
+5. Inputs are validated and failure paths are clear.
+6. Code is maintainable for the next coach/developer.
+
+## Training Planner Specific
+
+- Keep training plan and drill schemas stable and versioned when changed.
+- Treat drills as reusable building blocks; plans compose drills.
+- Preserve metadata needed for future search/ranking/recommendation.

@@ -1,0 +1,199 @@
+// Player tracker — production targets Neon + Vercel (PostgreSQL only)
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum Role {
+  SUPER_ADMIN
+  COACH
+}
+
+enum Gender {
+  BOYS
+  GIRLS
+}
+
+enum EvaluationLevel {
+  RL_FOR_SURE
+  BORDERLINE_RL
+  N1
+  N2
+  OTHER
+}
+
+enum PlayerStatus {
+  AVAILABLE
+  INVITED
+  COMMITTED
+  NOT_INTERESTED
+  ARCHIVED
+}
+
+/// Future real accounts; optional fields for MVP
+model User {
+  id          String   @id @default(cuid())
+  email       String?  @unique
+  displayName String
+  role        Role
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  evaluationAuthoredPlayers Player[] @relation("PlayerEvaluationAuthorUser")
+  createdPlayers            Player[] @relation("PlayerCreatedByUser")
+  updatedPlayers            Player[] @relation("PlayerUpdatedByUser")
+}
+
+model Coach {
+  id        String   @id @default(cuid())
+  firstName String
+  lastName  String
+  email     String?
+  phone     String?
+  isActive  Boolean  @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  teams                     Team[]
+  createdPlayers            Player[] @relation("PlayerCreatedByCoach")
+  evaluationAuthoredPlayers Player[] @relation("PlayerEvaluationAuthorCoach")
+}
+
+model Location {
+  id        String   @id @default(cuid())
+  name      String   @unique
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  teams   Team[]
+  players Player[]
+}
+
+model League {
+  id                   String   @id @default(cuid())
+  name                 String   @unique
+  allowedGender        Gender?
+  adminOverrideAllowed Boolean  @default(true)
+  createdAt            DateTime @default(now())
+  updatedAt            DateTime @updatedAt
+
+  teams           Team[]
+  playerInterests Player[] @relation("PlayerLeagueInterest")
+}
+
+model Team {
+  id                        String   @id @default(cuid())
+  seasonLabel               String
+  teamName                  String
+  locationId                String
+  location                  Location @relation(fields: [locationId], references: [id], onDelete: Restrict)
+  gender                    Gender
+  ageGroup                  String
+  coachId                   String
+  coach                     Coach    @relation(fields: [coachId], references: [id], onDelete: Restrict)
+  leagueId                  String?
+  league                    League?  @relation(fields: [leagueId], references: [id], onDelete: SetNull)
+  openSession               Boolean  @default(true)
+  committedPlayerCount      Int      @default(0)
+  coachEstimatedPlayerCount Int      @default(0)
+  recruitingNeeds           String?
+  notes                     String?
+  createdAt                 DateTime @default(now())
+  updatedAt                 DateTime @updatedAt
+
+  players Player[]
+
+  @@index([seasonLabel, locationId, gender, ageGroup, leagueId, openSession])
+}
+
+model AgeGroupRule {
+  id          String   @id @default(cuid())
+  seasonLabel String
+  gender      Gender
+  ageGroup    String
+  dobStart    DateTime @db.Date
+  dobEnd      DateTime @db.Date
+  sortOrder   Int
+  isActive    Boolean  @default(true)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@unique([seasonLabel, gender, ageGroup])
+  @@index([seasonLabel, gender, isActive])
+  @@index([gender, dobStart, dobEnd, isActive])
+}
+
+model Player {
+  id          String   @id @default(cuid())
+  seasonLabel String
+  firstName   String
+  lastName    String
+  dob         DateTime @db.Date
+  gender      Gender
+
+  derivedAgeGroup  String
+  overrideAgeGroup String?
+
+  locationId String
+  location   Location @relation(fields: [locationId], references: [id], onDelete: Restrict)
+
+  assignedTeamId String?
+  assignedTeam   Team?   @relation(fields: [assignedTeamId], references: [id], onDelete: SetNull)
+
+  leagueInterestId String?
+  leagueInterest   League? @relation("PlayerLeagueInterest", fields: [leagueInterestId], references: [id], onDelete: SetNull)
+
+  playerStatus    PlayerStatus @default(AVAILABLE)
+  willingToPlayUp Boolean      @default(false)
+
+  evaluationLevel         EvaluationLevel
+  evaluationNotes         String?
+  evaluationAuthorCoachId String?
+  evaluationAuthorCoach   Coach?          @relation("PlayerEvaluationAuthorCoach", fields: [evaluationAuthorCoachId], references: [id], onDelete: SetNull)
+  evaluationAuthorUserId  String?
+  evaluationAuthorUser    User?           @relation("PlayerEvaluationAuthorUser", fields: [evaluationAuthorUserId], references: [id], onDelete: SetNull)
+  evaluationUpdatedAt     DateTime?
+
+  createdByCoachId String?
+  createdByCoach   Coach?  @relation("PlayerCreatedByCoach", fields: [createdByCoachId], references: [id], onDelete: SetNull)
+
+  createdByUserId String?
+  createdByUser   User?   @relation("PlayerCreatedByUser", fields: [createdByUserId], references: [id], onDelete: SetNull)
+  updatedByUserId String?
+  updatedByUser   User?   @relation("PlayerUpdatedByUser", fields: [updatedByUserId], references: [id], onDelete: SetNull)
+
+  contact   PlayerContact?
+  createdAt DateTime       @default(now())
+  updatedAt DateTime       @updatedAt
+
+  @@index([gender, seasonLabel, derivedAgeGroup, overrideAgeGroup, locationId, playerStatus, evaluationLevel, assignedTeamId])
+  @@index([seasonLabel, firstName, lastName, dob, gender])
+}
+
+model PlayerContact {
+  playerId      String   @id
+  player        Player   @relation(fields: [playerId], references: [id], onDelete: Cascade)
+  guardianName  String?
+  guardianPhone String?
+  guardianEmail String?
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+}
+
+model AuditLog {
+  id          String   @id @default(cuid())
+  actorRole   Role
+  actorUserId String?
+  entityType  String
+  entityId    String
+  action      String
+  payloadJson String?
+  createdAt   DateTime @default(now())
+
+  @@index([entityType, entityId, createdAt])
+}
