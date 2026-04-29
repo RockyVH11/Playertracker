@@ -1,10 +1,6 @@
 import type { NextConfig } from "next";
-import path from "node:path";
 
-const nextConfig: NextConfig = {
-  turbopack: {
-    root: path.join(__dirname),
-  },
-};
+/** Avoid custom `turbopack.root` — mismatched tracing root breaks Vercel monorepo builds (pulls repo-root `src/middleware`). */
+const nextConfig: NextConfig = {};
 
 export default nextConfig;
