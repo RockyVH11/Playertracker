@@ -5,13 +5,24 @@ export async function getLocations() {
 }
 
 export async function getLeagues() {
-  return await prisma.league.findMany({ orderBy: { name: "asc" } });
+  return await prisma.league.findMany({
+    orderBy: [{ hierarchy: "asc" }, { name: "asc" }],
+  });
 }
 
 export async function getCoaches() {
   return await prisma.coach.findMany({
     where: { isActive: true },
     orderBy: [{ lastName: "asc" }, { firstName: "asc" }],
+    select: {
+      id: true,
+      firstName: true,
+      lastName: true,
+      email: true,
+      staffRoleLabel: true,
+      primaryAreaLabel: true,
+      primaryLocation: { select: { name: true } },
+    },
   });
 }
 

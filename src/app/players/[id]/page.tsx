@@ -7,14 +7,22 @@ import { getLeagues, getLocations, getTeamsForSelect } from "@/lib/data/referenc
 import { updatePlayerAction, deletePlayerAction } from "@/app/actions/players";
 import { toYmdUtc } from "@/lib/ui/date";
 import { formatEval } from "@/lib/ui/formatters";
-import { EvaluationLevel, Gender, PlayerStatus } from "@prisma/client";
+import {
+  EvaluationLevel,
+  Gender,
+  PlacementPriority,
+  PlayerPosition,
+  PlayerSource,
+  PlayerStatus,
+} from "@prisma/client";
+import { AgeGroupSelect } from "@/components/form/age-group-select";
 
 const evalOrder: EvaluationLevel[] = [
-  "RL_FOR_SURE",
-  "BORDERLINE_RL",
+  "RL",
   "N1",
   "N2",
-  "OTHER",
+  "GRASSROOTS",
+  "NOT_EVALUATED",
 ];
 
 type Props = {
@@ -26,6 +34,7 @@ export default async function PlayerDetailPage({ params, searchParams }: Props) 
   const { id } = await params;
   const sp = await searchParams;
   const dup = String(sp.duplicate ?? "") === "1";
+  const error = typeof sp.error === "string" ? sp.error : null;
   const session = await getSession();
   if (!session) redirect("/login");
   const p = await getPlayerById(session, id);
@@ -48,6 +57,11 @@ export default async function PlayerDetailPage({ params, searchParams }: Props) 
         <div className="rounded border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-900">
           Possible duplicate: another player in this season matches the same
           name, date of birth, and gender. Please confirm this is a new person.
+        </div>
+      )}
+      {error && (
+        <div className="rounded border border-amber-300 bg-amber-50 px-3 py-2 text-sm text-amber-900">
+          {error}
         </div>
       )}
       <div>
@@ -93,6 +107,22 @@ export default async function PlayerDetailPage({ params, searchParams }: Props) 
         <div>
           <div className="text-xs text-slate-500">Willing to play up</div>
           <div>{p.willingToPlayUp ? "Yes" : "No"}</div>
+        </div>
+        <div>
+          <div className="text-xs text-slate-500">Primary position</div>
+          <div>{p.primaryPosition}</div>
+        </div>
+        <div>
+          <div className="text-xs text-slate-500">Secondary position</div>
+          <div>{p.secondaryPosition ?? "—"}</div>
+        </div>
+        <div>
+          <div className="text-xs text-slate-500">Source</div>
+          <div>{p.playerSource}</div>
+        </div>
+        <div>
+          <div className="text-xs text-slate-500">Placement priority</div>
+          <div>{p.placementPriority}</div>
         </div>
       </div>
       <div className="rounded border border-slate-200 bg-white p-3 text-sm">
@@ -238,6 +268,63 @@ export default async function PlayerDetailPage({ params, searchParams }: Props) 
                 ))}
               </select>
             </label>
+            <label className="block space-y-1 text-sm">
+              <span>Primary position</span>
+              <select
+                className="w-full rounded border border-slate-300 px-2 py-2"
+                defaultValue={p.primaryPosition}
+                name="primaryPosition"
+              >
+                {Object.values(PlayerPosition).map((v) => (
+                  <option key={v} value={v}>
+                    {v}
+                  </option>
+                ))}
+              </select>
+            </label>
+            <label className="block space-y-1 text-sm">
+              <span>Secondary position</span>
+              <select
+                className="w-full rounded border border-slate-300 px-2 py-2"
+                defaultValue={p.secondaryPosition ?? ""}
+                name="secondaryPosition"
+              >
+                <option value="">—</option>
+                {Object.values(PlayerPosition).map((v) => (
+                  <option key={v} value={v}>
+                    {v}
+                  </option>
+                ))}
+              </select>
+            </label>
+            <label className="block space-y-1 text-sm">
+              <span>Source</span>
+              <select
+                className="w-full rounded border border-slate-300 px-2 py-2"
+                defaultValue={p.playerSource}
+                name="playerSource"
+              >
+                {Object.values(PlayerSource).map((v) => (
+                  <option key={v} value={v}>
+                    {v}
+                  </option>
+                ))}
+              </select>
+            </label>
+            <label className="block space-y-1 text-sm">
+              <span>Placement priority</span>
+              <select
+                className="w-full rounded border border-slate-300 px-2 py-2"
+                defaultValue={p.placementPriority}
+                name="placementPriority"
+              >
+                {Object.values(PlacementPriority).map((v) => (
+                  <option key={v} value={v}>
+                    {v}
+                  </option>
+                ))}
+              </select>
+            </label>
           </div>
           <label className="inline-flex items-center gap-2 text-sm">
             <input defaultChecked={p.willingToPlayUp} name="willingToPlayUp" type="checkbox" />
@@ -245,10 +332,11 @@ export default async function PlayerDetailPage({ params, searchParams }: Props) 
           </label>
           <label className="block space-y-1 text-sm">
             <span>Override age group</span>
-            <input
+            <AgeGroupSelect
+              emptyLabel="Use chart / auto"
+              name="overrideAgeGroup"
               className="w-full rounded border border-slate-300 px-2 py-2"
               defaultValue={p.overrideAgeGroup ?? ""}
-              name="overrideAgeGroup"
             />
           </label>
           <div className="grid gap-3 sm:grid-cols-2">

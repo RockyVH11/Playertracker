@@ -3,8 +3,17 @@
 import { useState } from "react";
 import { loginAction } from "@/app/actions/auth";
 import { useFormStatus } from "react-dom";
+import { formatCoachPickerLabel } from "@/lib/ui/formatters";
 
-type Coach = { id: string; firstName: string; lastName: string; email: string | null };
+type Coach = {
+  id: string;
+  firstName: string;
+  lastName: string;
+  email: string | null;
+  staffRoleLabel: string | null;
+  primaryAreaLabel: string | null;
+  primaryLocation: { name: string } | null;
+};
 
 function SubmitButton() {
   const s = useFormStatus();
@@ -72,8 +81,7 @@ export function LoginForm({ coaches }: { coaches: Coach[] }) {
             <option value="">Select coach</option>
             {coaches.map((c) => (
               <option key={c.id} value={c.id}>
-                {c.lastName}, {c.firstName}
-                {c.email ? ` — ${c.email}` : ""}
+                {formatCoachPickerLabel(c)}
               </option>
             ))}
           </select>

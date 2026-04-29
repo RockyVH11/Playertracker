@@ -19,7 +19,7 @@ export default async function RootLayout({
   return (
     <html lang="en">
       <body className="min-h-dvh">
-        {session && <AppNav session={session} />}
+        <AppNav session={session} />
         <main className="mx-auto max-w-6xl p-4 sm:p-6">{children}</main>
       </body>
     </html>

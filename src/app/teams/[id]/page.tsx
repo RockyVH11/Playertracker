@@ -3,15 +3,23 @@ import { notFound, redirect } from "next/navigation";
 import { getSession } from "@/lib/auth/session";
 import { getTeamById } from "@/lib/services/teams.service";
 import { getCoaches, getLeagues, getLocations } from "@/lib/data/reference";
+import { formatCoachPickerLabel } from "@/lib/ui/formatters";
 import { updateTeamAction, deleteTeamAction } from "@/app/actions/teams";
 import { updateTeamCoachAction } from "@/app/actions/teams-coach";
 import { isCoachSession } from "@/lib/auth/types";
 import { Gender } from "@prisma/client";
+import { AgeGroupSelect } from "@/components/form/age-group-select";
+import { needFieldClass, needGkClass } from "@/lib/ui/need-count-style";
 
-type Props = { params: Promise<{ id: string }> };
+type SearchProps = {
+  params: Promise<{ id: string }>;
+  searchParams: Promise<Record<string, string | string[] | undefined>>;
+};
 
-export default async function TeamDetailPage({ params }: Props) {
+export default async function TeamDetailPage({ params, searchParams }: SearchProps) {
   const { id } = await params;
+  const sp = await searchParams;
+  const error = typeof sp.error === "string" ? sp.error : null;
   const session = await getSession();
   if (!session) redirect("/login");
   const team = await getTeamById(id);
@@ -27,6 +35,11 @@ export default async function TeamDetailPage({ params }: Props) {
           {team.seasonLabel} · {team.gender === "BOYS" ? "Boys" : "Girls"} · {team.ageGroup} · {team.location.name}
         </p>
       </div>
+      {error && (
+        <div className="rounded border border-amber-300 bg-amber-50 px-3 py-2 text-sm text-amber-900">
+          {error}
+        </div>
+      )}
       <div className="grid gap-2 rounded border border-slate-200 bg-white p-4 text-sm sm:grid-cols-2">
         <div>
           <div className="text-xs text-slate-500">Coach</div>
@@ -53,6 +66,28 @@ export default async function TeamDetailPage({ params }: Props) {
         <div>
           <div className="text-xs text-slate-500">Coach est.</div>
           <div>{team.coachEstimatedPlayerCount}</div>
+        </div>
+        <div>
+          <div className="text-xs text-slate-500">Returning</div>
+          <div>{team.returningPlayerCount}</div>
+        </div>
+        <div>
+          <div className="text-xs text-slate-500">Needed total</div>
+          <div>{team.neededPlayerCount}</div>
+        </div>
+        <div className="sm:col-span-2">
+          <div className="text-xs text-slate-500">Needed by position</div>
+          <div className="text-sm">
+            <span className={needGkClass(team.neededGoalkeepers)}>GK {team.neededGoalkeepers}</span>
+            <span className="text-slate-500">, </span>
+            <span className={needFieldClass(team.neededDefenders)}>DEF {team.neededDefenders}</span>
+            <span className="text-slate-500">, </span>
+            <span className={needFieldClass(team.neededMidfielders)}>MID {team.neededMidfielders}</span>
+            <span className="text-slate-500">, </span>
+            <span className={needFieldClass(team.neededForwards)}>FWD {team.neededForwards}</span>
+            <span className="text-slate-500">, </span>
+            <span className={needFieldClass(team.neededUtility)}>UTIL {team.neededUtility}</span>
+          </div>
         </div>
         {team.recruitingNeeds && (
           <div className="sm:col-span-2">
@@ -188,12 +223,42 @@ async function AdminEditForm({ team }: { team: Awaited<ReturnType<typeof getTeam
           </label>
           <label className="block space-y-1 text-sm">
             <span className="font-medium">Age group</span>
-            <input
-              className="w-full rounded border border-slate-300 px-2 py-2"
+            <AgeGroupSelect
               name="ageGroup"
-              defaultValue={team.ageGroup}
               required
+              className="w-full rounded border border-slate-300 px-2 py-2"
+              defaultValue={team.ageGroup}
             />
+          </label>
+        </div>
+        <div className="grid grid-cols-2 gap-4 sm:grid-cols-4">
+          <label className="block space-y-1 text-sm">
+            <span className="font-medium">Returning</span>
+            <input className="w-full rounded border border-slate-300 px-2 py-2" defaultValue={team.returningPlayerCount} min={0} name="returningPlayerCount" type="number" />
+          </label>
+          <label className="block space-y-1 text-sm">
+            <span className="font-medium">Needed total</span>
+            <input className="w-full rounded border border-slate-300 px-2 py-2" defaultValue={team.neededPlayerCount} min={0} name="neededPlayerCount" type="number" />
+          </label>
+          <label className="block space-y-1 text-sm">
+            <span className="font-medium">Needed GK</span>
+            <input className="w-full rounded border border-slate-300 px-2 py-2" defaultValue={team.neededGoalkeepers} min={0} name="neededGoalkeepers" type="number" />
+          </label>
+          <label className="block space-y-1 text-sm">
+            <span className="font-medium">Needed DEF</span>
+            <input className="w-full rounded border border-slate-300 px-2 py-2" defaultValue={team.neededDefenders} min={0} name="neededDefenders" type="number" />
+          </label>
+          <label className="block space-y-1 text-sm">
+            <span className="font-medium">Needed MID</span>
+            <input className="w-full rounded border border-slate-300 px-2 py-2" defaultValue={team.neededMidfielders} min={0} name="neededMidfielders" type="number" />
+          </label>
+          <label className="block space-y-1 text-sm">
+            <span className="font-medium">Needed FWD</span>
+            <input className="w-full rounded border border-slate-300 px-2 py-2" defaultValue={team.neededForwards} min={0} name="neededForwards" type="number" />
+          </label>
+          <label className="block space-y-1 text-sm">
+            <span className="font-medium">Needed UTIL</span>
+            <input className="w-full rounded border border-slate-300 px-2 py-2" defaultValue={team.neededUtility} min={0} name="neededUtility" type="number" />
           </label>
         </div>
         <label className="block space-y-1 text-sm">
@@ -206,7 +271,7 @@ async function AdminEditForm({ team }: { team: Awaited<ReturnType<typeof getTeam
           >
             {coaches.map((c) => (
               <option key={c.id} value={c.id}>
-                {c.lastName}, {c.firstName}
+                {formatCoachPickerLabel(c)}
               </option>
             ))}
           </select>

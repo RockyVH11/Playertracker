@@ -2,28 +2,28 @@
 
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
-import { z } from "zod";
+import { auditLog } from "@/lib/audit-log";
 import { getSession } from "@/lib/auth/session";
 import { updateTeam } from "@/lib/services/teams.service";
+import { teamCoachUpdateSchema } from "@/lib/validation/teams";
 
-const schema = z
-  .object({
-    id: z.string().cuid(),
-    coachEstimatedPlayerCount: z.coerce.number().int().min(0),
-    recruitingNeeds: z.string().optional().nullable(),
-  })
-  .strict();
+function backUrl(teamId: string, error?: string) {
+  const base = `/teams/${teamId}`;
+  if (!error) return base;
+  return `${base}?error=${encodeURIComponent(error)}`;
+}
 
 export async function updateTeamCoachAction(formData: FormData) {
   const session = await getSession();
   if (!session) redirect("/login");
-  const parsed = schema.safeParse({
+  const parsed = teamCoachUpdateSchema.safeParse({
     id: String(formData.get("id") ?? ""),
     coachEstimatedPlayerCount: String(formData.get("coachEstimatedPlayerCount") ?? ""),
     recruitingNeeds: String(formData.get("recruitingNeeds") ?? "") || null,
   });
   if (!parsed.success) {
-    throw new Error("Invalid");
+    const id = String(formData.get("id") ?? "");
+    redirect(backUrl(id, "Invalid team update."));
   }
   await updateTeam({
     session,
@@ -33,7 +33,8 @@ export async function updateTeamCoachAction(formData: FormData) {
       recruitingNeeds: parsed.data.recruitingNeeds,
     },
   });
+  await auditLog(session, "Team", parsed.data.id, "coachUpdateEstimate", {});
   revalidatePath("/teams");
   revalidatePath(`/teams/${parsed.data.id}`);
-  redirect(`/teams/${parsed.data.id}`);
+  redirect(backUrl(parsed.data.id));
 }

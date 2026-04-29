@@ -1,6 +1,9 @@
 import {
   type EvaluationLevel,
   type Gender,
+  type PlacementPriority,
+  type PlayerPosition,
+  type PlayerSource,
   type PlayerStatus,
 } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
@@ -25,6 +28,10 @@ const playerListSelect = {
   leagueInterestId: true,
   leagueInterest: { select: { id: true, name: true } },
   playerStatus: true,
+  primaryPosition: true,
+  secondaryPosition: true,
+  playerSource: true,
+  placementPriority: true,
   willingToPlayUp: true,
   evaluationLevel: true,
   evaluationNotes: true,
@@ -59,6 +66,10 @@ export type PlayerListRow = {
   leagueInterestId: string | null;
   leagueInterest: { id: string; name: string } | null;
   playerStatus: PlayerStatus;
+  primaryPosition: PlayerPosition;
+  secondaryPosition: PlayerPosition | null;
+  playerSource: PlayerSource;
+  placementPriority: PlacementPriority;
   willingToPlayUp: boolean;
   evaluationLevel: EvaluationLevel;
   evaluationNotes: string | null;
@@ -114,6 +125,10 @@ function mapRow(
     leagueInterestId: row.leagueInterestId,
     leagueInterest: row.leagueInterest,
     playerStatus: row.playerStatus,
+    primaryPosition: row.primaryPosition,
+    secondaryPosition: row.secondaryPosition,
+    playerSource: row.playerSource,
+    placementPriority: row.placementPriority,
     willingToPlayUp: row.willingToPlayUp,
     evaluationLevel: row.evaluationLevel,
     evaluationNotes: row.evaluationNotes,
@@ -150,12 +165,69 @@ export async function findPossibleDuplicates(input: {
 
 export async function listPlayers(
   session: SessionPayload,
-  input: { seasonLabel?: string } = {}
+  input: {
+    seasonLabel?: string;
+    q?: string;
+    gender?: Gender;
+    ageGroup?: string;
+    locationId?: string;
+    leagueInterestId?: string;
+    evaluationLevel?: EvaluationLevel;
+    assignedTeamId?: string;
+    assignment?: "any" | "available" | "assigned";
+    playerStatus?: PlayerStatus;
+    primaryPosition?: PlayerPosition;
+  } = {}
 ): Promise<PlayerListRow[]> {
   const { getServerEnv } = await import("@/lib/env");
   const season = input.seasonLabel ?? getServerEnv().DEFAULT_SEASON_LABEL;
+  const assignmentWhere =
+    input.assignment === "available"
+      ? { assignedTeamId: null }
+      : input.assignment === "assigned"
+        ? { assignedTeamId: { not: null } }
+        : {};
+  const ageGroupWhere = input.ageGroup
+    ? {
+        OR: [
+          { overrideAgeGroup: input.ageGroup },
+          {
+            AND: [
+              { overrideAgeGroup: null },
+              { derivedAgeGroup: input.ageGroup },
+            ],
+          },
+        ],
+      }
+    : {};
+  const q = input.q?.trim();
   const rows = await prisma.player.findMany({
-    where: { seasonLabel: season },
+    where: {
+      seasonLabel: season,
+      ...(q
+        ? {
+            OR: [
+              { firstName: { contains: q, mode: "insensitive" } },
+              { lastName: { contains: q, mode: "insensitive" } },
+            ],
+          }
+        : {}),
+      ...(input.gender ? { gender: input.gender } : {}),
+      ...ageGroupWhere,
+      ...(input.locationId ? { locationId: input.locationId } : {}),
+      ...(input.leagueInterestId
+        ? { leagueInterestId: input.leagueInterestId }
+        : {}),
+      ...(input.evaluationLevel
+        ? { evaluationLevel: input.evaluationLevel }
+        : {}),
+      ...(input.assignedTeamId ? { assignedTeamId: input.assignedTeamId } : {}),
+      ...assignmentWhere,
+      ...(input.playerStatus ? { playerStatus: input.playerStatus } : {}),
+      ...(input.primaryPosition
+        ? { primaryPosition: input.primaryPosition }
+        : {}),
+    },
     orderBy: [{ lastName: "asc" }, { firstName: "asc" }],
     select: playerListSelect,
   });
@@ -237,6 +309,10 @@ export async function createPlayer(input: {
     assignedTeamId: string | null;
     leagueInterestId: string | null;
     playerStatus: PlayerStatus;
+    primaryPosition: PlayerPosition;
+    secondaryPosition: PlayerPosition | null;
+    playerSource: PlayerSource;
+    placementPriority: PlacementPriority;
     willingToPlayUp: boolean;
     overrideAgeGroup: string | null;
     evaluationLevel: EvaluationLevel;
@@ -285,6 +361,10 @@ export async function createPlayer(input: {
       assignedTeamId: input.data.assignedTeamId,
       leagueInterestId: input.data.leagueInterestId,
       playerStatus: input.data.playerStatus,
+      primaryPosition: input.data.primaryPosition,
+      secondaryPosition: input.data.secondaryPosition,
+      playerSource: input.data.playerSource,
+      placementPriority: input.data.placementPriority,
       willingToPlayUp: input.data.willingToPlayUp,
       evaluationLevel: input.data.evaluationLevel,
       evaluationNotes: input.data.evaluationNotes,
@@ -322,6 +402,10 @@ export async function updatePlayer(input: {
     assignedTeamId: string | null;
     leagueInterestId: string | null;
     playerStatus: PlayerStatus;
+    primaryPosition: PlayerPosition;
+    secondaryPosition: PlayerPosition | null;
+    playerSource: PlayerSource;
+    placementPriority: PlacementPriority;
     willingToPlayUp: boolean;
     overrideAgeGroup: string | null;
     evaluationLevel: EvaluationLevel;
@@ -370,6 +454,10 @@ export async function updatePlayer(input: {
       assignedTeamId: input.data.assignedTeamId,
       leagueInterestId: input.data.leagueInterestId,
       playerStatus: input.data.playerStatus,
+      primaryPosition: input.data.primaryPosition,
+      secondaryPosition: input.data.secondaryPosition,
+      playerSource: input.data.playerSource,
+      placementPriority: input.data.placementPriority,
       willingToPlayUp: input.data.willingToPlayUp,
       evaluationLevel: input.data.evaluationLevel,
       evaluationNotes: input.data.evaluationNotes,

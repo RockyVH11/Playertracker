@@ -1,16 +1,43 @@
 import Link from "next/link";
+import { Suspense } from "react";
 import { getSession } from "@/lib/auth/session";
 import { getServerEnv } from "@/lib/env";
 import { listTeams } from "@/lib/services/teams.service";
 import { redirect } from "next/navigation";
+import { getLeagues, getLocations } from "@/lib/data/reference";
+import { teamFilterSchema } from "@/lib/validation/teams";
+import { PostCreateTeamPrompt } from "@/components/teams/post-create-team-prompt";
 
-export default async function TeamsPage() {
+type Props = {
+  searchParams: Promise<Record<string, string | string[] | undefined>>;
+};
+
+export default async function TeamsPage({ searchParams }: Props) {
   const session = await getSession();
   if (!session) redirect("/login");
   const defaultSeason = getServerEnv().DEFAULT_SEASON_LABEL;
-  const teams = await listTeams({ seasonLabel: defaultSeason });
+  const sp = await searchParams;
+  const parsed = teamFilterSchema.safeParse({
+    seasonLabel: typeof sp.seasonLabel === "string" ? sp.seasonLabel : defaultSeason,
+    locationId: typeof sp.locationId === "string" ? sp.locationId : undefined,
+    gender: typeof sp.gender === "string" ? sp.gender : undefined,
+    leagueId: typeof sp.leagueId === "string" ? sp.leagueId : undefined,
+    openSession: typeof sp.openSession === "string" ? sp.openSession : "any",
+    q: typeof sp.q === "string" ? sp.q : undefined,
+  });
+  const filters = parsed.success
+    ? parsed.data
+    : { seasonLabel: defaultSeason, openSession: "any" as const };
+  const [teams, locations, leagues] = await Promise.all([
+    listTeams(filters),
+    getLocations(),
+    getLeagues(),
+  ]);
   return (
     <div className="space-y-6">
+      <Suspense fallback={null}>
+        <PostCreateTeamPrompt />
+      </Suspense>
       <div className="flex flex-wrap items-end justify-between gap-3">
         <div>
           <h1 className="text-2xl font-semibold text-slate-900">Teams</h1>
@@ -27,6 +54,57 @@ export default async function TeamsPage() {
           </Link>
         )}
       </div>
+      <form className="grid grid-cols-1 gap-2 rounded border border-slate-200 bg-white p-3 sm:grid-cols-6" method="get">
+        <input
+          className="rounded border border-slate-300 px-2 py-2 text-sm sm:col-span-2"
+          defaultValue={filters.q ?? ""}
+          name="q"
+          placeholder="Search team name"
+        />
+        <select
+          className="rounded border border-slate-300 px-2 py-2 text-sm"
+          defaultValue={filters.locationId ?? ""}
+          name="locationId"
+        >
+          <option value="">All locations</option>
+          {locations.map((l) => (
+            <option key={l.id} value={l.id}>
+              {l.name}
+            </option>
+          ))}
+        </select>
+        <select
+          className="rounded border border-slate-300 px-2 py-2 text-sm"
+          defaultValue={filters.gender ?? ""}
+          name="gender"
+        >
+          <option value="">All genders</option>
+          <option value="BOYS">Boys</option>
+          <option value="GIRLS">Girls</option>
+        </select>
+        <select
+          className="rounded border border-slate-300 px-2 py-2 text-sm"
+          defaultValue={filters.leagueId ?? ""}
+          name="leagueId"
+        >
+          <option value="">All leagues</option>
+          {leagues.map((l) => (
+            <option key={l.id} value={l.id}>
+              {l.name}
+            </option>
+          ))}
+        </select>
+        <select
+          className="rounded border border-slate-300 px-2 py-2 text-sm"
+          defaultValue={filters.openSession ?? "any"}
+          name="openSession"
+        >
+          <option value="any">Any session status</option>
+          <option value="open">Open session only</option>
+          <option value="closed">Closed session only</option>
+        </select>
+        <input name="seasonLabel" type="hidden" value={filters.seasonLabel ?? defaultSeason} />
+      </form>
       <div className="overflow-x-auto rounded border border-slate-200 bg-white">
         <table className="min-w-full text-left text-sm">
           <thead className="border-b border-slate-200 bg-slate-50 text-xs font-medium text-slate-600">

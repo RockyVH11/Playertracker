@@ -24,6 +24,9 @@ yarn-error.log*
 *.swp
 .DS_Store
 
+# LibreOffice temp lock files when a tracked CSV is open
+.~lock*
+
 # prisma
 # keep migrations; ignore only local db if sqlite (we use postgres only)
 

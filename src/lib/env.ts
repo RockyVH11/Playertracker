@@ -14,6 +14,8 @@ const serverSchema = z.object({
     .string()
     .regex(/^\d{4}-\d{4}$/)
     .default("2026-2027"),
+  /** Prefix for auto-generated team display names */
+  CLUB_DISPLAY_NAME: z.string().trim().min(1).default("Kernow Storm"),
   NODE_ENV: z
     .enum(["development", "test", "production"])
     .optional()
@@ -31,6 +33,7 @@ export function getServerEnv(): ServerEnv {
     COACH_SHARED_PASSWORD: process.env.COACH_SHARED_PASSWORD,
     SUPER_ADMIN_PASSWORD: process.env.SUPER_ADMIN_PASSWORD,
     DEFAULT_SEASON_LABEL: process.env.DEFAULT_SEASON_LABEL,
+    CLUB_DISPLAY_NAME: process.env.CLUB_DISPLAY_NAME,
     NODE_ENV: process.env.NODE_ENV,
   });
   if (!parsed.success) {

@@ -5,17 +5,29 @@ import { getServerEnv } from "@/lib/env";
 import { getLeagues, getLocations, getTeamsForSelect } from "@/lib/data/reference";
 import { createPlayerAction } from "@/app/actions/players";
 import { canCreatePlayer } from "@/lib/rbac";
-import { EvaluationLevel, Gender, PlayerStatus } from "@prisma/client";
+import {
+  EvaluationLevel,
+  Gender,
+  PlacementPriority,
+  PlayerPosition,
+  PlayerSource,
+  PlayerStatus,
+} from "@prisma/client";
+import { AgeGroupSelect } from "@/components/form/age-group-select";
 
 const evalOrder: EvaluationLevel[] = [
-  "RL_FOR_SURE",
-  "BORDERLINE_RL",
+  "RL",
   "N1",
   "N2",
-  "OTHER",
+  "GRASSROOTS",
+  "NOT_EVALUATED",
 ];
 
-export default async function NewPlayerPage() {
+type Props = {
+  searchParams: Promise<Record<string, string | string[] | undefined>>;
+};
+
+export default async function NewPlayerPage({ searchParams }: Props) {
   const session = await getSession();
   if (!session) redirect("/login");
   if (!canCreatePlayer(session)) {
@@ -27,9 +39,16 @@ export default async function NewPlayerPage() {
     getLeagues(),
     getTeamsForSelect(defaultSeason),
   ]);
+  const sp = await searchParams;
+  const error = typeof sp.error === "string" ? sp.error : null;
   return (
     <div className="space-y-6">
       <h1 className="text-2xl font-semibold">New player</h1>
+      {error && (
+        <div className="rounded border border-amber-300 bg-amber-50 px-3 py-2 text-sm text-amber-900">
+          {error}
+        </div>
+      )}
       <form
         action={createPlayerAction}
         className="max-w-2xl space-y-3 rounded border border-slate-200 bg-white p-4"
@@ -112,13 +131,52 @@ export default async function NewPlayerPage() {
             </select>
           </label>
         </div>
+        <div className="grid gap-3 sm:grid-cols-2">
+          <label className="block space-y-1 text-sm">
+            <span className="font-medium">Primary position</span>
+            <select className="w-full rounded border border-slate-300 px-2 py-2" defaultValue={PlayerPosition.UNKNOWN} name="primaryPosition">
+              {Object.values(PlayerPosition).map((p) => (
+                <option key={p} value={p}>{p}</option>
+              ))}
+            </select>
+          </label>
+          <label className="block space-y-1 text-sm">
+            <span className="font-medium">Secondary position (optional)</span>
+            <select className="w-full rounded border border-slate-300 px-2 py-2" defaultValue="" name="secondaryPosition">
+              <option value="">—</option>
+              {Object.values(PlayerPosition).map((p) => (
+                <option key={p} value={p}>{p}</option>
+              ))}
+            </select>
+          </label>
+          <label className="block space-y-1 text-sm">
+            <span className="font-medium">Player source</span>
+            <select className="w-full rounded border border-slate-300 px-2 py-2" defaultValue={PlayerSource.COACH_ENTERED} name="playerSource">
+              {Object.values(PlayerSource).map((s) => (
+                <option key={s} value={s}>{s}</option>
+              ))}
+            </select>
+          </label>
+          <label className="block space-y-1 text-sm">
+            <span className="font-medium">Placement priority</span>
+            <select className="w-full rounded border border-slate-300 px-2 py-2" defaultValue={PlacementPriority.MEDIUM} name="placementPriority">
+              {Object.values(PlacementPriority).map((p) => (
+                <option key={p} value={p}>{p}</option>
+              ))}
+            </select>
+          </label>
+        </div>
         <label className="inline-flex items-center gap-2 text-sm">
           <input name="willingToPlayUp" type="checkbox" />
           Willing to play up
         </label>
         <label className="block space-y-1 text-sm">
           <span className="font-medium">Override age group (older only, optional)</span>
-          <input className="w-full rounded border border-slate-300 px-2 py-2" name="overrideAgeGroup" />
+          <AgeGroupSelect
+            emptyLabel="Use chart / auto"
+            name="overrideAgeGroup"
+            className="w-full rounded border border-slate-300 px-2 py-2"
+          />
         </label>
         <div className="grid gap-3 sm:grid-cols-2">
           <label className="block space-y-1 text-sm">

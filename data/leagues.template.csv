@@ -1,0 +1,3 @@
+name,conference,ageGroup,gender,hierarchy,capacity,format,notes
+ECNL-RL-NTX,,,Boys,10,,League,Top tier (see src/lib/data/leagues-seed.ts for default order)
+API,,,,110,,League,Sorted alphabetically after N1 block in app

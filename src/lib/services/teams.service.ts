@@ -16,6 +16,13 @@ export type TeamListRow = {
   openSession: boolean;
   committedPlayerCount: number;
   coachEstimatedPlayerCount: number;
+  returningPlayerCount: number;
+  neededPlayerCount: number;
+  neededGoalkeepers: number;
+  neededDefenders: number;
+  neededMidfielders: number;
+  neededForwards: number;
+  neededUtility: number;
   recruitingNeeds: string | null;
   notes: string | null;
   league: { id: string; name: string } | null;
@@ -28,12 +35,33 @@ export async function getAssignedPlayerCount(teamId: string): Promise<number> {
 }
 
 export async function listTeams(
-  input: { seasonLabel?: string } = {}
+  input: {
+    seasonLabel?: string;
+    locationId?: string;
+    gender?: "BOYS" | "GIRLS";
+    leagueId?: string;
+    openSession?: "any" | "open" | "closed";
+    q?: string;
+  } = {}
 ): Promise<TeamListRow[]> {
   const { getServerEnv } = await import("@/lib/env");
   const season = input.seasonLabel ?? getServerEnv().DEFAULT_SEASON_LABEL;
+  const where = {
+    seasonLabel: season,
+    ...(input.locationId ? { locationId: input.locationId } : {}),
+    ...(input.gender ? { gender: input.gender } : {}),
+    ...(input.leagueId ? { leagueId: input.leagueId } : {}),
+    ...(input.openSession === "open"
+      ? { openSession: true }
+      : input.openSession === "closed"
+        ? { openSession: false }
+        : {}),
+    ...(input.q && input.q.trim().length > 0
+      ? { teamName: { contains: input.q.trim(), mode: "insensitive" as const } }
+      : {}),
+  };
   const teams = await prisma.team.findMany({
-    where: { seasonLabel: season },
+    where,
     orderBy: { teamName: "asc" },
     include: {
       location: { select: { id: true, name: true } },
@@ -41,31 +69,46 @@ export async function listTeams(
       coach: { select: { firstName: true, lastName: true, id: true } },
     },
   });
-  return await Promise.all(
-    teams.map(async (t) => {
-      const assignedPlayerCount = await getAssignedPlayerCount(t.id);
-      return {
-        id: t.id,
-        seasonLabel: t.seasonLabel,
-        teamName: t.teamName,
-        location: t.location,
-        gender: t.gender,
-        ageGroup: t.ageGroup,
-        openSession: t.openSession,
-        committedPlayerCount: t.committedPlayerCount,
-        coachEstimatedPlayerCount: t.coachEstimatedPlayerCount,
-        recruitingNeeds: t.recruitingNeeds,
-        league: t.league,
-        coach: {
-          id: t.coach.id,
-          firstName: t.coach.firstName,
-          lastName: t.coach.lastName,
-        },
-        notes: t.notes,
-        assignedPlayerCount,
-      };
-    })
+  const counts = await prisma.player.groupBy({
+    by: ["assignedTeamId"],
+    where: {
+      seasonLabel: season,
+      assignedTeamId: { in: teams.map((t) => t.id) },
+    },
+    _count: { _all: true },
+  });
+  const countMap = new Map(
+    counts
+      .filter((c) => c.assignedTeamId != null)
+      .map((c) => [c.assignedTeamId as string, c._count._all] as const)
   );
+  return teams.map((t) => ({
+    id: t.id,
+    seasonLabel: t.seasonLabel,
+    teamName: t.teamName,
+    location: t.location,
+    gender: t.gender,
+    ageGroup: t.ageGroup,
+    openSession: t.openSession,
+    committedPlayerCount: t.committedPlayerCount,
+    coachEstimatedPlayerCount: t.coachEstimatedPlayerCount,
+        returningPlayerCount: t.returningPlayerCount,
+        neededPlayerCount: t.neededPlayerCount,
+        neededGoalkeepers: t.neededGoalkeepers,
+        neededDefenders: t.neededDefenders,
+        neededMidfielders: t.neededMidfielders,
+        neededForwards: t.neededForwards,
+        neededUtility: t.neededUtility,
+    recruitingNeeds: t.recruitingNeeds,
+    league: t.league,
+    coach: {
+      id: t.coach.id,
+      firstName: t.coach.firstName,
+      lastName: t.coach.lastName,
+    },
+    notes: t.notes,
+    assignedPlayerCount: countMap.get(t.id) ?? 0,
+  }));
 }
 
 export async function getTeamById(
@@ -91,6 +134,13 @@ export async function getTeamById(
     openSession: t.openSession,
     committedPlayerCount: t.committedPlayerCount,
     coachEstimatedPlayerCount: t.coachEstimatedPlayerCount,
+    returningPlayerCount: t.returningPlayerCount,
+    neededPlayerCount: t.neededPlayerCount,
+    neededGoalkeepers: t.neededGoalkeepers,
+    neededDefenders: t.neededDefenders,
+    neededMidfielders: t.neededMidfielders,
+    neededForwards: t.neededForwards,
+    neededUtility: t.neededUtility,
     recruitingNeeds: t.recruitingNeeds,
     notes: t.notes,
     league: t.league,
@@ -109,6 +159,51 @@ function assertSuperAdmin(s: SessionPayload) {
   }
 }
 
+/** Shared Prisma `create` payload for `Team`; used by create flows and squad-split finalize. */
+export function prismaTeamUncheckedCreatePayload(data: {
+  seasonLabel: string;
+  teamName: string;
+  locationId: string;
+  gender: import("@prisma/client").Gender;
+  ageGroup: string;
+  coachId: string;
+  leagueId?: string | null;
+  openSession: boolean;
+  committedPlayerCount: number;
+  coachEstimatedPlayerCount: number;
+  returningPlayerCount: number;
+  neededPlayerCount: number;
+  neededGoalkeepers: number;
+  neededDefenders: number;
+  neededMidfielders: number;
+  neededForwards: number;
+  neededUtility: number;
+  recruitingNeeds?: string | null;
+  notes?: string | null;
+}) {
+  return {
+    seasonLabel: data.seasonLabel,
+    teamName: data.teamName,
+    locationId: data.locationId,
+    gender: data.gender,
+    ageGroup: data.ageGroup,
+    coachId: data.coachId,
+    leagueId: data.leagueId ?? null,
+    openSession: data.openSession,
+    committedPlayerCount: data.committedPlayerCount,
+    coachEstimatedPlayerCount: data.coachEstimatedPlayerCount,
+    returningPlayerCount: data.returningPlayerCount,
+    neededPlayerCount: data.neededPlayerCount,
+    neededGoalkeepers: data.neededGoalkeepers,
+    neededDefenders: data.neededDefenders,
+    neededMidfielders: data.neededMidfielders,
+    neededForwards: data.neededForwards,
+    neededUtility: data.neededUtility,
+    recruitingNeeds: data.recruitingNeeds ?? null,
+    notes: data.notes ?? null,
+  };
+}
+
 export async function createTeam(input: {
   session: SessionPayload;
   data: {
@@ -122,26 +217,20 @@ export async function createTeam(input: {
     openSession: boolean;
     committedPlayerCount: number;
     coachEstimatedPlayerCount: number;
+    returningPlayerCount: number;
+    neededPlayerCount: number;
+    neededGoalkeepers: number;
+    neededDefenders: number;
+    neededMidfielders: number;
+    neededForwards: number;
+    neededUtility: number;
     recruitingNeeds: string | null;
     notes: string | null;
   };
 }): Promise<{ id: string }> {
   assertSuperAdmin(input.session);
   const team = await prisma.team.create({
-    data: {
-      seasonLabel: input.data.seasonLabel,
-      teamName: input.data.teamName,
-      locationId: input.data.locationId,
-      gender: input.data.gender,
-      ageGroup: input.data.ageGroup,
-      coachId: input.data.coachId,
-      leagueId: input.data.leagueId,
-      openSession: input.data.openSession,
-      committedPlayerCount: input.data.committedPlayerCount,
-      coachEstimatedPlayerCount: input.data.coachEstimatedPlayerCount,
-      recruitingNeeds: input.data.recruitingNeeds,
-      notes: input.data.notes,
-    },
+    data: prismaTeamUncheckedCreatePayload(input.data),
   });
   return { id: team.id };
 }
@@ -160,6 +249,13 @@ export async function updateTeam(input: {
     openSession: boolean;
     committedPlayerCount: number;
     coachEstimatedPlayerCount: number;
+    returningPlayerCount: number;
+    neededPlayerCount: number;
+    neededGoalkeepers: number;
+    neededDefenders: number;
+    neededMidfielders: number;
+    neededForwards: number;
+    neededUtility: number;
     recruitingNeeds: string | null;
     notes: string | null;
   }>;

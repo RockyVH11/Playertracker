@@ -1,107 +1,241 @@
-import { PrismaClient, Gender, Role } from "@prisma/client";
+import { parse } from "csv-parse/sync";
+import fs from "node:fs/promises";
+import path from "node:path";
+import {
+  EvaluationLevel,
+  Gender,
+  PlacementPriority,
+  PlayerPosition,
+  PlayerSource,
+  PrismaClient,
+  Role,
+} from "@prisma/client";
+import {
+  LEAGUE_RENAMES_FROM_TO,
+  ORDERED_LEAGUES,
+} from "../src/lib/data/leagues-seed";
+import { buildStandardAgeGroupRuleRows } from "../src/lib/age-chart-standard";
 
 const prisma = new PrismaClient();
 
 const SEASON = process.env.DEFAULT_SEASON_LABEL ?? "2026-2027";
 
 async function main() {
-  const locations = await Promise.all([
-    prisma.location.upsert({
-      where: { name: "Midland" },
+  const defaultLocationNames = ["Midland", "Odessa", "Lubbock"];
+  const locationMap = new Map<string, string>();
+  for (const name of defaultLocationNames) {
+    const row = await prisma.location.upsert({
+      where: { name },
       update: {},
-      create: { name: "Midland" },
-    }),
-    prisma.location.upsert({
-      where: { name: "Odessa" },
-      update: {},
-      create: { name: "Odessa" },
-    }),
-    prisma.location.upsert({
-      where: { name: "Lubbock" },
-      update: {},
-      create: { name: "Lubbock" },
-    }),
-  ]);
+      create: { name },
+    });
+    locationMap.set(name.toLowerCase(), row.id);
+  }
 
-  const leagueNames = [
-    "ECNL-RL-NTX",
-    "ECNL-RL-Frontier",
-    "N1 Frontier D1",
-    "N1 Frontier D2",
-    "N1 NTX D1",
-    "N1 NTX D2",
-    "Pre ECNL",
-    "Other",
-  ];
-  const leagues = await Promise.all(
-    leagueNames.map((name) =>
-      prisma.league.upsert({
+  for (const [fromName, toName] of LEAGUE_RENAMES_FROM_TO) {
+    const oldRow = await prisma.league.findUnique({ where: { name: fromName } });
+    const targetExists = await prisma.league.findUnique({ where: { name: toName } });
+    if (oldRow && !targetExists) {
+      await prisma.league.update({
+        where: { id: oldRow.id },
+        data: { name: toName },
+      });
+    }
+  }
+
+  const leagues = [];
+  for (const row of ORDERED_LEAGUES) {
+    const allowedGender = row.allowedGender !== undefined ? row.allowedGender : null;
+
+    const league = await prisma.league.upsert({
+      where: { name: row.name },
+      update: {
+        hierarchy: row.hierarchy,
+        allowedGender,
+      },
+      create: {
+        name: row.name,
+        hierarchy: row.hierarchy,
+        allowedGender,
+      },
+    });
+    leagues.push(league);
+  }
+
+  const staffRows = await loadStaffCsvRows();
+  if (staffRows.length > 0) {
+    for (const row of staffRows) {
+      let first = String(row.firstName ?? row.first_name ?? row.FirstName ?? "").trim();
+      let last = String(row.lastName ?? row.last_name ?? row.LastName ?? "").trim();
+      const staffNameFull =
+        normalizeNullable(csvPick(row, "staff name", "Staff Name")) ??
+        normalizeNullable(row["Staff Name"]) ??
+        normalizeNullable(row.staff_name);
+      if (staffNameFull) {
+        const split = splitPersonName(staffNameFull);
+        first = split.firstName;
+        last = split.lastName;
+      }
+      if (!first && !last) continue;
+
+      const email = normalizeNullable(row.email ?? row.Email);
+      const phone = normalizeNullable(row.phone ?? row.Phone);
+      const staffRoleLabel = normalizeNullable(
+        csvPick(row, "role", "Role") ??
+          row.Role ??
+          row.role
+      );
+      const area =
+        normalizeNullable(
+          csvPick(row, "primary area", "Primary Area", "primaryarea")
+        ) ??
+        normalizeNullable(
+          row["Primary Area"] ??
+            row.primaryArea ??
+            row.primary_area ??
+            row.PrimaryArea ??
+            row.location ??
+            row.Location
+        );
+      const status = normalizeNullable(csvPick(row, "status", "Status") ?? row["Status"]);
+      const isActive = staffCsvStatusIsActive(status);
+
+      let primaryLocationId: string | null = null;
+      if (area) {
+        let locId = locationMap.get(area.toLowerCase());
+        if (!locId) {
+          const loc = await prisma.location.upsert({
+            where: { name: area },
+            update: {},
+            create: { name: area },
+          });
+          locId = loc.id;
+          locationMap.set(area.toLowerCase(), loc.id);
+        }
+        primaryLocationId = locId;
+      }
+      if (email) {
+        await prisma.coach.upsert({
+          where: { email },
+          update: {
+            firstName: first || "Unknown",
+            lastName: last || "Unknown",
+            phone,
+            staffRoleLabel,
+            primaryAreaLabel: area,
+            primaryLocationId,
+            isActive,
+          },
+          create: {
+            firstName: first || "Unknown",
+            lastName: last || "Unknown",
+            email,
+            phone,
+            staffRoleLabel,
+            primaryAreaLabel: area,
+            primaryLocationId,
+            isActive,
+          },
+        });
+      } else {
+        const existing = await prisma.coach.findFirst({
+          where: { firstName: first || "Unknown", lastName: last || "Unknown" },
+        });
+        if (existing) {
+          await prisma.coach.update({
+            where: { id: existing.id },
+            data: {
+              phone,
+              staffRoleLabel,
+              primaryAreaLabel: area,
+              primaryLocationId,
+              isActive,
+            },
+          });
+        } else {
+          await prisma.coach.create({
+            data: {
+              firstName: first || "Unknown",
+              lastName: last || "Unknown",
+              email: null,
+              phone,
+              staffRoleLabel,
+              primaryAreaLabel: area,
+              primaryLocationId,
+              isActive,
+            },
+          });
+        }
+      }
+    }
+  }
+
+  const coach1 = await ensureCoach("Alex", "Sample", "alex.sample@example.com");
+  const coach2 = await ensureCoach("Jamie", "Sample", null);
+
+  const leagueRows = await loadCsvRowsIfExists(path.join(process.cwd(), "data", "leagues.csv"));
+  if (leagueRows.length > 0) {
+    for (const row of leagueRows) {
+      const name = String(row.name ?? row.league ?? row.pathway ?? "").trim();
+      if (!name) continue;
+      await prisma.league.upsert({
         where: { name },
-        update: {},
-        create: { name, allowedGender: name.includes("Frontier") ? Gender.BOYS : null },
+        update: {
+          conference: normalizeNullable(row.conference),
+          ageGroup: normalizeNullable(row.ageGroup ?? row.age_group),
+          hierarchy: toNullableInt(row.hierarchy),
+          capacity: toNullableInt(row.capacity),
+          format: normalizeNullable(row.format),
+          notes: normalizeNullable(row.notes),
+          allowedGender: parseGender(row.gender),
+        },
+        create: {
+          name,
+          conference: normalizeNullable(row.conference),
+          ageGroup: normalizeNullable(row.ageGroup ?? row.age_group),
+          hierarchy: toNullableInt(row.hierarchy),
+          capacity: toNullableInt(row.capacity),
+          format: normalizeNullable(row.format),
+          notes: normalizeNullable(row.notes),
+          allowedGender: parseGender(row.gender),
+        },
+      });
+    }
+  }
+
+  const standardAgeRows = buildStandardAgeGroupRuleRows(SEASON);
+  await prisma.$transaction(
+    standardAgeRows.map((r) =>
+      prisma.ageGroupRule.upsert({
+        where: {
+          seasonLabel_gender_ageGroup: {
+            seasonLabel: r.seasonLabel,
+            gender: r.gender,
+            ageGroup: r.ageGroup,
+          },
+        },
+        update: {
+          dobStart: r.dobStart,
+          dobEnd: r.dobEnd,
+          sortOrder: r.sortOrder,
+          isActive: true,
+        },
+        create: {
+          seasonLabel: r.seasonLabel,
+          gender: r.gender,
+          ageGroup: r.ageGroup,
+          dobStart: r.dobStart,
+          dobEnd: r.dobEnd,
+          sortOrder: r.sortOrder,
+          isActive: true,
+        },
       })
     )
   );
 
-  const coach1 = await prisma.coach.upsert({
-    where: { id: "seed_coach_1" },
-    update: {},
-    create: {
-      id: "seed_coach_1",
-      firstName: "Alex",
-      lastName: "Sample",
-      email: "alex.sample@example.com",
-    },
+  const loc = await prisma.location.findFirstOrThrow({
+    where: { name: "Midland" },
   });
-  const coach2 = await prisma.coach.upsert({
-    where: { id: "seed_coach_2" },
-    update: {},
-    create: {
-      id: "seed_coach_2",
-      firstName: "Jamie",
-      lastName: "Sample",
-    },
-  });
-
-  // Age chart: wide band so most DOBs map to "U15" for seed/testing
-  await prisma.ageGroupRule.upsert({
-    where: {
-      seasonLabel_gender_ageGroup: {
-        seasonLabel: SEASON,
-        gender: Gender.GIRLS,
-        ageGroup: "U15",
-      },
-    },
-    update: {},
-    create: {
-      seasonLabel: SEASON,
-      gender: Gender.GIRLS,
-      ageGroup: "U15",
-      dobStart: new Date("2008-01-01"),
-      dobEnd: new Date("2011-12-31"),
-      sortOrder: 10,
-    },
-  });
-  await prisma.ageGroupRule.upsert({
-    where: {
-      seasonLabel_gender_ageGroup: {
-        seasonLabel: SEASON,
-        gender: Gender.BOYS,
-        ageGroup: "U15",
-      },
-    },
-    update: {},
-    create: {
-      seasonLabel: SEASON,
-      gender: Gender.BOYS,
-      ageGroup: "U15",
-      dobStart: new Date("2008-01-01"),
-      dobEnd: new Date("2011-12-31"),
-      sortOrder: 10,
-    },
-  });
-
-  const loc = locations[0]!;
   const league = leagues[0]!;
 
   await prisma.team.upsert({
@@ -119,6 +253,13 @@ async function main() {
       openSession: true,
       committedPlayerCount: 0,
       coachEstimatedPlayerCount: 0,
+      returningPlayerCount: 8,
+      neededPlayerCount: 6,
+      neededGoalkeepers: 1,
+      neededDefenders: 2,
+      neededMidfielders: 2,
+      neededForwards: 1,
+      neededUtility: 0,
       recruitingNeeds: "Need 2 more defenders and depth at goalkeeper.",
     },
   });
@@ -138,6 +279,13 @@ async function main() {
       openSession: true,
       committedPlayerCount: 0,
       coachEstimatedPlayerCount: 0,
+      returningPlayerCount: 9,
+      neededPlayerCount: 5,
+      neededGoalkeepers: 1,
+      neededDefenders: 1,
+      neededMidfielders: 2,
+      neededForwards: 1,
+      neededUtility: 0,
     },
   });
 
@@ -150,6 +298,135 @@ async function main() {
       role: Role.SUPER_ADMIN,
     },
   });
+
+  // Keep one sample player aligned to new enums/fields.
+  await prisma.player.upsert({
+    where: { id: "seed_player_1" },
+    update: {},
+    create: {
+      id: "seed_player_1",
+      seasonLabel: SEASON,
+      firstName: "Taylor",
+      lastName: "Example",
+      dob: new Date("2010-05-12"),
+      gender: Gender.GIRLS,
+      derivedAgeGroup: "U15",
+      locationId: loc.id,
+      assignedTeamId: "seed_team_1",
+      playerStatus: "AVAILABLE",
+      primaryPosition: PlayerPosition.MIDFIELDER,
+      secondaryPosition: PlayerPosition.FORWARD,
+      playerSource: PlayerSource.COACH_ENTERED,
+      placementPriority: PlacementPriority.MEDIUM,
+      willingToPlayUp: true,
+      evaluationLevel: EvaluationLevel.RL,
+      evaluationNotes: "Strong technical profile and work rate.",
+      evaluationAuthorCoachId: coach1.id,
+      evaluationUpdatedAt: new Date(),
+      createdByCoachId: coach1.id,
+      importedFromInterestForm: false,
+    },
+  });
+}
+
+async function ensureCoach(firstName: string, lastName: string, email: string | null) {
+  const existing = email
+    ? await prisma.coach.findFirst({ where: { email } })
+    : await prisma.coach.findFirst({ where: { firstName, lastName } });
+  if (existing) return existing;
+  return await prisma.coach.create({
+    data: {
+      firstName,
+      lastName,
+      email,
+    },
+  });
+}
+
+/** Tries `data/staff.csv` then `data/Staff.csv`; fixes blank CSV header cells so columns do not overwrite each other. */
+async function loadStaffCsvRows(): Promise<Record<string, string>[]> {
+  const paths = [
+    path.join(process.cwd(), "data", "staff.csv"),
+    path.join(process.cwd(), "data", "Staff.csv"),
+  ];
+  for (const filePath of paths) {
+    try {
+      const text = await fs.readFile(filePath, "utf8");
+      return parse(text, {
+        columns: (header: string[]) =>
+          header.map((h, i) => String(h ?? "").trim() || `_col_${i}`),
+        skip_empty_lines: true,
+        trim: true,
+      }) as Record<string, string>[];
+    } catch {
+      /* try next path */
+    }
+  }
+  return [];
+}
+
+/** Match CSV columns when header spelling/case varies (e.g. `staff name` vs `Staff Name`). */
+function csvPick(row: Record<string, string>, ...labelVariants: string[]): string | undefined {
+  const normalize = (s: string) =>
+    s.trim().toLowerCase().replace(/\s+/g, "");
+  const wanted = new Set(labelVariants.map(normalize));
+  for (const [rawKey, rawVal] of Object.entries(row)) {
+    if (wanted.has(normalize(rawKey))) {
+      return String(rawVal ?? "").trim();
+    }
+  }
+  return undefined;
+}
+
+function splitPersonName(full: string): { firstName: string; lastName: string } {
+  const t = full.replace(/\s+/g, " ").trim();
+  if (!t) return { firstName: "", lastName: "" };
+  const space = t.indexOf(" ");
+  if (space === -1) return { firstName: t, lastName: "Unknown" };
+  const firstName = t.slice(0, space).trim();
+  const lastName = t.slice(space + 1).trim();
+  return { firstName, lastName: lastName || "Unknown" };
+}
+
+/** Treats empty / missing status as active; marks Open (and similar) inactive. */
+function staffCsvStatusIsActive(status: string | null): boolean {
+  if (!status) return true;
+  const s = status.toLowerCase();
+  if (s === "open" || s === "inactive") return false;
+  return true;
+}
+
+async function loadCsvRowsIfExists(filePath: string): Promise<Record<string, string>[]> {
+  try {
+    const text = await fs.readFile(filePath, "utf8");
+    return parse(text, {
+      columns: (header: string[]) =>
+        header.map((h, i) => String(h ?? "").trim() || `_col_${i}`),
+      skip_empty_lines: true,
+      trim: true,
+    }) as Record<string, string>[];
+  } catch {
+    return [];
+  }
+}
+
+function normalizeNullable(v: unknown): string | null {
+  const s = String(v ?? "").trim();
+  return s.length > 0 ? s : null;
+}
+
+function toNullableInt(v: unknown): number | null {
+  if (v == null) return null;
+  const n = Number(v);
+  return Number.isFinite(n) ? Math.trunc(n) : null;
+}
+
+function parseGender(v: unknown): Gender | null {
+  const s = String(v ?? "").trim().toLowerCase();
+  if (!s) return null;
+  if (s.startsWith("boy")) return Gender.BOYS;
+  if (s.startsWith("girl")) return Gender.GIRLS;
+  return null;
 }
 
 main()

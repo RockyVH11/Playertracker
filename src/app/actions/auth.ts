@@ -68,6 +68,14 @@ export async function listActiveCoaches() {
   return await prisma.coach.findMany({
     where: { isActive: true },
     orderBy: [{ lastName: "asc" }, { firstName: "asc" }],
-    select: { id: true, firstName: true, lastName: true, email: true },
+    select: {
+      id: true,
+      firstName: true,
+      lastName: true,
+      email: true,
+      staffRoleLabel: true,
+      primaryAreaLabel: true,
+      primaryLocation: { select: { name: true } },
+    },
   });
 }
