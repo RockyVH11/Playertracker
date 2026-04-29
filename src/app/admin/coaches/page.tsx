@@ -1,6 +1,8 @@
 import {
   createCoachAction,
+  deleteCoachAction,
   setCoachActiveAction,
+  updateCoachAction,
 } from "@/app/actions/admin-coaches";
 import { formatCoachPickerLabel } from "@/lib/ui/formatters";
 import { prisma } from "@/lib/prisma";
@@ -105,21 +107,69 @@ export default async function AdminCoachesPage({ searchParams }: Props) {
               <th className="border-b px-2 py-2">Email</th>
               <th className="border-b px-2 py-2">Primary area</th>
               <th className="border-b px-2 py-2">Status</th>
+              <th className="border-b px-2 py-2">Actions</th>
             </tr>
           </thead>
           <tbody>
             {coaches.map((c) => (
               <tr key={c.id}>
-                <td className="border-b border-slate-100 px-2 py-2">
-                  {formatCoachPickerLabel(c)}
+                <td className="border-b border-slate-100 px-2 py-2 align-top">
+                  <form action={updateCoachAction} className="grid gap-2 md:grid-cols-2">
+                    <input type="hidden" name="coachId" value={c.id} />
+                    <div className="md:col-span-2 text-xs text-slate-500">
+                      {formatCoachPickerLabel(c)}
+                    </div>
+                    <input
+                      name="firstName"
+                      defaultValue={c.firstName}
+                      className="rounded border border-slate-300 px-2 py-1"
+                      required
+                    />
+                    <input
+                      name="lastName"
+                      defaultValue={c.lastName}
+                      className="rounded border border-slate-300 px-2 py-1"
+                      required
+                    />
+                    <input
+                      name="staffRoleLabel"
+                      defaultValue={c.staffRoleLabel ?? ""}
+                      className="rounded border border-slate-300 px-2 py-1 md:col-span-2"
+                      placeholder="Role"
+                    />
+                    <input
+                      name="email"
+                      defaultValue={c.email ?? ""}
+                      className="rounded border border-slate-300 px-2 py-1 md:col-span-2"
+                      placeholder="Email"
+                    />
+                    <input
+                      name="primaryAreaLabel"
+                      defaultValue={c.primaryAreaLabel ?? c.primaryLocation?.name ?? ""}
+                      className="rounded border border-slate-300 px-2 py-1 md:col-span-2"
+                      placeholder="Primary area"
+                      required
+                    />
+                    <input
+                      type="hidden"
+                      name="isActive"
+                      value={c.isActive ? "true" : "false"}
+                    />
+                    <button
+                      type="submit"
+                      className="rounded border border-slate-300 px-2 py-1 text-xs hover:bg-slate-50 md:col-span-2"
+                    >
+                      Save details
+                    </button>
+                  </form>
                 </td>
-                <td className="border-b border-slate-100 px-2 py-2 text-slate-600">
+                <td className="border-b border-slate-100 px-2 py-2 text-slate-600 align-top">
                   {c.email ?? "—"}
                 </td>
-                <td className="border-b border-slate-100 px-2 py-2 text-slate-600">
+                <td className="border-b border-slate-100 px-2 py-2 text-slate-600 align-top">
                   {c.primaryAreaLabel ?? c.primaryLocation?.name ?? "—"}
                 </td>
-                <td className="border-b border-slate-100 px-2 py-2">
+                <td className="border-b border-slate-100 px-2 py-2 align-top">
                   <form action={setCoachActiveAction} className="flex items-center gap-2">
                     <input type="hidden" name="coachId" value={c.id} />
                     <select
@@ -135,6 +185,17 @@ export default async function AdminCoachesPage({ searchParams }: Props) {
                       className="rounded border border-slate-300 px-2 py-1 text-xs hover:bg-slate-50"
                     >
                       Update
+                    </button>
+                  </form>
+                </td>
+                <td className="border-b border-slate-100 px-2 py-2 align-top">
+                  <form action={deleteCoachAction}>
+                    <input type="hidden" name="coachId" value={c.id} />
+                    <button
+                      type="submit"
+                      className="rounded border border-red-200 px-2 py-1 text-xs text-red-700 hover:bg-red-50"
+                    >
+                      Delete
                     </button>
                   </form>
                 </td>

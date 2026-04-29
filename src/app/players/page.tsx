@@ -202,6 +202,7 @@ export default async function PlayersPage({ searchParams }: Props) {
                 </td>
                 <td className="px-3 py-2">
                   {p.overrideAgeGroup ?? p.derivedAgeGroup}
+                  {p.willingToPlayUp ? " · play-up" : ""}
                 </td>
                 <td className="px-3 py-2">{formatEval(p.evaluationLevel)}</td>
                 <td className="px-3 py-2">

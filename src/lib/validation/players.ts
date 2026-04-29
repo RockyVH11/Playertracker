@@ -9,26 +9,37 @@ import {
 } from "@prisma/client";
 import { isYouthAgeGroup } from "@/lib/data/age-groups";
 
-function parseDobStringLoose(s: string): Date | null {
-  const d = new Date(s);
-  if (Number.isNaN(d.getTime())) return null;
-  return new Date(Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate()));
-}
-
-/** Validates and normalizes ISO calendar DOB strings for storage. */
-export function parseDobToUtcDate(s: string): Date {
-  const t = s.trim();
-  const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(t);
-  if (m) {
-    return new Date(
-      Date.UTC(Number(m[1]), Number(m[2]) - 1, Number(m[3]), 0, 0, 0, 0)
-    );
-  }
-  const d = parseDobStringLoose(s);
-  if (!d) {
-    throw new Error("Invalid date of birth");
+function validUtcDate(y: number, month: number, day: number): Date | null {
+  const d = new Date(Date.UTC(y, month - 1, day, 0, 0, 0, 0));
+  if (
+    d.getUTCFullYear() !== y ||
+    d.getUTCMonth() + 1 !== month ||
+    d.getUTCDate() !== day
+  ) {
+    return null;
   }
   return d;
+}
+
+/** Accepts YYYY-MM-DD or MM/DD/YYYY and normalizes to UTC date. */
+export function parseDobToUtcDate(s: string): Date {
+  const t = s.trim();
+
+  const iso = /^(\d{4})-(\d{2})-(\d{2})$/.exec(t);
+  if (iso) {
+    const d = validUtcDate(Number(iso[1]), Number(iso[2]), Number(iso[3]));
+    if (!d) throw new Error("Invalid date of birth");
+    return d;
+  }
+
+  const us = /^(\d{2})\/(\d{2})\/(\d{4})$/.exec(t);
+  if (us) {
+    const d = validUtcDate(Number(us[3]), Number(us[1]), Number(us[2]));
+    if (!d) throw new Error("Invalid date of birth");
+    return d;
+  }
+
+  throw new Error("Invalid date of birth");
 }
 
 function isParsableDobField(s: string): boolean {
@@ -53,7 +64,10 @@ const requiredDobField = z
     z
       .string()
       .min(1, "Date of birth is required.")
-      .regex(/^\d{4}-\d{2}-\d{2}$/, "Enter date of birth as YYYY-MM-DD.")
+      .regex(
+        /^(\d{4}-\d{2}-\d{2}|\d{2}\/\d{2}\/\d{4})$/,
+        "Enter date of birth as MM/DD/YYYY."
+      )
       .refine((s) => isParsableDobField(s), "Date of birth is not a valid date.")
   );
 

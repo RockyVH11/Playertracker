@@ -5,6 +5,7 @@ import { getServerEnv } from "@/lib/env";
 import { getLeagues, getLocations, getTeamsForSelect } from "@/lib/data/reference";
 import { createPlayerAction } from "@/app/actions/players";
 import { canCreatePlayer } from "@/lib/rbac";
+import { isCoachSession } from "@/lib/auth/types";
 import {
   EvaluationLevel,
   Gender,
@@ -14,6 +15,8 @@ import {
   PlayerStatus,
 } from "@prisma/client";
 import { AgeGroupSelect } from "@/components/form/age-group-select";
+import { DobInput } from "@/components/form/dob-input";
+import { AssignmentFields } from "@/components/players/assignment-fields";
 
 const evalOrder: EvaluationLevel[] = [
   "RL",
@@ -34,12 +37,19 @@ export default async function NewPlayerPage({ searchParams }: Props) {
     return <p className="text-sm">Not allowed.</p>;
   }
   const defaultSeason = getServerEnv().DEFAULT_SEASON_LABEL;
+  const sp = await searchParams;
+  const seasonParam = typeof sp.seasonLabel === "string" ? sp.seasonLabel : defaultSeason;
+  const season = /^\d{4}-\d{4}$/.test(seasonParam) ? seasonParam : defaultSeason;
+  const preferredTeamId = typeof sp.teamId === "string" ? sp.teamId : "";
+  const assignModeParam = typeof sp.assign === "string" ? sp.assign : "";
+  const defaultAssignMode = assignModeParam === "team" ? "team" : "pool";
   const [locations, leagues, teams] = await Promise.all([
     getLocations(),
     getLeagues(),
-    getTeamsForSelect(defaultSeason),
+    getTeamsForSelect(season, {
+      prioritizeCoachId: isCoachSession(session) ? session.coachId : null,
+    }),
   ]);
-  const sp = await searchParams;
   const error = typeof sp.error === "string" ? sp.error : null;
   return (
     <div className="space-y-6">
@@ -53,7 +63,7 @@ export default async function NewPlayerPage({ searchParams }: Props) {
         action={createPlayerAction}
         className="max-w-2xl space-y-3 rounded border border-slate-200 bg-white p-4"
       >
-        <input name="seasonLabel" type="hidden" value={defaultSeason} />
+        <input name="seasonLabel" type="hidden" value={season} />
         <div className="grid gap-3 sm:grid-cols-2">
           <label className="block space-y-1 text-sm">
             <span className="font-medium">First name</span>
@@ -67,7 +77,7 @@ export default async function NewPlayerPage({ searchParams }: Props) {
         <div className="grid gap-3 sm:grid-cols-2">
           <label className="block space-y-1 text-sm">
             <span className="font-medium">Date of birth</span>
-            <input className="w-full rounded border border-slate-300 px-2 py-2" name="dob" required type="date" />
+            <DobInput className="w-full rounded border border-slate-300 px-2 py-2" name="dob" required />
           </label>
           <label className="block space-y-1 text-sm">
             <span className="font-medium">Gender</span>
@@ -80,30 +90,12 @@ export default async function NewPlayerPage({ searchParams }: Props) {
             </select>
           </label>
         </div>
-        <div className="grid gap-3 sm:grid-cols-2">
-          <label className="block space-y-1 text-sm">
-            <span className="font-medium">Location</span>
-            <select className="w-full rounded border border-slate-300 px-2 py-2" name="locationId" required>
-              <option value="">Select</option>
-              {locations.map((l) => (
-                <option key={l.id} value={l.id}>
-                  {l.name}
-                </option>
-              ))}
-            </select>
-          </label>
-          <label className="block space-y-1 text-sm">
-            <span className="font-medium">Assigned team (optional)</span>
-            <select className="w-full rounded border border-slate-300 px-2 py-2" name="assignedTeamId">
-              <option value="">— (pool / unassigned)</option>
-              {teams.map((t) => (
-                <option key={t.id} value={t.id}>
-                  {t.teamName} · {t.ageGroup} · {t.gender}
-                </option>
-              ))}
-            </select>
-          </label>
-        </div>
+        <AssignmentFields
+          teams={teams}
+          locations={locations}
+          defaultMode={defaultAssignMode}
+          defaultTeamId={preferredTeamId}
+        />
         <div className="grid gap-3 sm:grid-cols-2">
           <label className="block space-y-1 text-sm">
             <span className="font-medium">League interest</span>

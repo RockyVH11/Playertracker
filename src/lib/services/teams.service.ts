@@ -42,6 +42,7 @@ export async function listTeams(
     leagueId?: string;
     openSession?: "any" | "open" | "closed";
     q?: string;
+    prioritizeCoachId?: string | null;
   } = {}
 ): Promise<TeamListRow[]> {
   const { getServerEnv } = await import("@/lib/env");
@@ -82,7 +83,15 @@ export async function listTeams(
       .filter((c) => c.assignedTeamId != null)
       .map((c) => [c.assignedTeamId as string, c._count._all] as const)
   );
-  return teams.map((t) => ({
+  const ordered = input.prioritizeCoachId
+    ? [...teams].sort((a, b) => {
+        const aOwn = a.coachId === input.prioritizeCoachId ? 0 : 1;
+        const bOwn = b.coachId === input.prioritizeCoachId ? 0 : 1;
+        if (aOwn !== bOwn) return aOwn - bOwn;
+        return a.teamName.localeCompare(b.teamName);
+      })
+    : teams;
+  return ordered.map((t) => ({
     id: t.id,
     seasonLabel: t.seasonLabel,
     teamName: t.teamName,

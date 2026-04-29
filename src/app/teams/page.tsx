@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { Suspense } from "react";
 import { getSession } from "@/lib/auth/session";
+import { isCoachSession } from "@/lib/auth/types";
 import { getServerEnv } from "@/lib/env";
 import { listTeams } from "@/lib/services/teams.service";
 import { redirect } from "next/navigation";
@@ -29,7 +30,10 @@ export default async function TeamsPage({ searchParams }: Props) {
     ? parsed.data
     : { seasonLabel: defaultSeason, openSession: "any" as const };
   const [teams, locations, leagues] = await Promise.all([
-    listTeams(filters),
+    listTeams({
+      ...filters,
+      prioritizeCoachId: isCoachSession(session) ? session.coachId : null,
+    }),
     getLocations(),
     getLeagues(),
   ]);
@@ -146,7 +150,17 @@ export default async function TeamsPage({ searchParams }: Props) {
                 <td className="px-3 py-2">{t.openSession ? "Yes" : "No"}</td>
                 <td className="px-3 py-2 text-right">{t.assignedPlayerCount}</td>
                 <td className="px-3 py-2 text-right">{t.committedPlayerCount}</td>
-                <td className="px-3 py-2 text-right">{t.coachEstimatedPlayerCount}</td>
+                <td className="px-3 py-2 text-right">
+                  <div className="flex items-center justify-end gap-2">
+                    <span>{t.coachEstimatedPlayerCount}</span>
+                    <Link
+                      href={`/players/new?assign=team&teamId=${encodeURIComponent(t.id)}&seasonLabel=${encodeURIComponent(filters.seasonLabel ?? defaultSeason)}`}
+                      className="rounded border border-slate-300 px-2 py-1 text-xs hover:bg-slate-50"
+                    >
+                      + Add player
+                    </Link>
+                  </div>
+                </td>
               </tr>
             ))}
           </tbody>
