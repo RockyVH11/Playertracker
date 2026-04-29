@@ -234,12 +234,15 @@ export default async function DashboardPage({ searchParams }: Props) {
               {unassigned.map((p) => (
                 <tr className="border-t border-slate-100" key={p.id}>
                   <td className="px-2 py-2"><Link href={`/players/${p.id}`}>{p.lastName}, {p.firstName}</Link></td>
-                  <td className="px-2 py-2">{p.gender === "BOYS" ? "B" : "G"} {p.overrideAgeGroup ?? p.derivedAgeGroup}</td>
+                  <td className="px-2 py-2">
+                    {p.gender === "BOYS" ? "B" : "G"} {p.overrideAgeGroup ?? p.derivedAgeGroup}
+                    {p.willingToPlayUp ? " · play-up" : ""}
+                  </td>
                   <td className="px-2 py-2">{p.location.name}</td>
                   <td className="px-2 py-2">{formatEval(p.evaluationLevel)}</td>
                   <td className="px-2 py-2">{p.playerStatus}</td>
                   <td className="px-2 py-2">{p.primaryPosition}{p.secondaryPosition ? ` / ${p.secondaryPosition}` : ""}</td>
-                  <td className="px-2 py-2">{p.willingToPlayUp ? "Yes" : "No"}</td>
+                  <td className="px-2 py-2">{p.willingToPlayUp ? "Yes · play-up" : "No"}</td>
                   <td className="px-2 py-2">{p.assignedTeam ? `${p.assignedTeam.coach.lastName} / ${p.assignedTeam.teamName}` : "Unassigned"}</td>
                 </tr>
               ))}

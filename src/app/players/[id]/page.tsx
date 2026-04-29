@@ -5,7 +5,7 @@ import { getPlayerById } from "@/lib/services/players.service";
 import { canEditPlayer } from "@/lib/rbac";
 import { getLeagues, getLocations, getTeamsForSelect } from "@/lib/data/reference";
 import { updatePlayerAction, deletePlayerAction } from "@/app/actions/players";
-import { toYmdUtc } from "@/lib/ui/date";
+import { toUsDateUtc, toYmdUtc } from "@/lib/ui/date";
 import { formatEval } from "@/lib/ui/formatters";
 import {
   EvaluationLevel,
@@ -16,6 +16,7 @@ import {
   PlayerStatus,
 } from "@prisma/client";
 import { AgeGroupSelect } from "@/components/form/age-group-select";
+import { DobInput } from "@/components/form/dob-input";
 
 const evalOrder: EvaluationLevel[] = [
   "RL",
@@ -77,7 +78,7 @@ export default async function PlayerDetailPage({ params, searchParams }: Props) 
         </div>
         <div>
           <div className="text-xs text-slate-500">Date of birth</div>
-          <div>{toYmdUtc(p.dob)}</div>
+          <div>{toUsDateUtc(p.dob)}</div>
         </div>
         <div>
           <div className="text-xs text-slate-500">Age group (derived / override)</div>
@@ -183,12 +184,11 @@ export default async function PlayerDetailPage({ params, searchParams }: Props) 
             </label>
             <label className="block space-y-1 text-sm">
               <span>DOB</span>
-              <input
+              <DobInput
                 className="w-full rounded border border-slate-300 px-2 py-2"
                 defaultValue={toYmdUtc(p.dob)}
                 name="dob"
                 required
-                type="date"
               />
             </label>
             <label className="block space-y-1 text-sm">

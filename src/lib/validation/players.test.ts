@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { Gender, PlayerStatus, EvaluationLevel } from "@prisma/client";
-import { playerCreateSchema } from "./players";
+import { parseDobToUtcDate, playerCreateSchema } from "./players";
 
 const base = {
   seasonLabel: "2026-2027",
@@ -40,5 +40,11 @@ describe("playerCreateSchema", () => {
   it("accepts minimal valid identity fields", () => {
     const r = playerCreateSchema.safeParse(base);
     expect(r.success).toBe(true);
+  });
+
+  it("accepts MM/DD/YYYY date input", () => {
+    const r = playerCreateSchema.safeParse({ ...base, dob: "05/01/2014" });
+    expect(r.success).toBe(true);
+    expect(parseDobToUtcDate("05/01/2014").toISOString().slice(0, 10)).toBe("2014-05-01");
   });
 });

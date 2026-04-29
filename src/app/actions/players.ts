@@ -4,6 +4,7 @@ import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { getSession } from "@/lib/auth/session";
 import { createPlayer, deletePlayer, updatePlayer } from "@/lib/services/players.service";
+import { prisma } from "@/lib/prisma";
 import {
   firstPlayerFormIssueMessage,
   parseDobToUtcDate,
@@ -26,6 +27,8 @@ function parseNullableId(s: string | null) {
   return s;
 }
 
+const POOL_GENERAL_SENTINEL = "__POOL_GENERAL__";
+
 function playerErrorUrl(path: string, message: string) {
   return `${path}?error=${encodeURIComponent(message)}`;
 }
@@ -33,14 +36,28 @@ function playerErrorUrl(path: string, message: string) {
 export async function createPlayerAction(formData: FormData) {
   const session = await getSession();
   if (!session) redirect("/login");
+  const assignmentMode = String(formData.get("assignmentMode") ?? "pool");
+  const rawAssignedTeamId = parseNullableId(String(formData.get("assignedTeamId") ?? ""));
+  const rawLocationId = String(formData.get("locationId") ?? "");
+  const assignedTeamId = assignmentMode === "team" ? rawAssignedTeamId : null;
+  let locationId = rawLocationId;
+  if (assignmentMode === "pool" && rawLocationId === POOL_GENERAL_SENTINEL) {
+    const general = await prisma.location.upsert({
+      where: { name: "Pool - General" },
+      update: {},
+      create: { name: "Pool - General" },
+      select: { id: true },
+    });
+    locationId = general.id;
+  }
   const raw = {
     seasonLabel: String(formData.get("seasonLabel") ?? ""),
     firstName: String(formData.get("firstName") ?? ""),
     lastName: String(formData.get("lastName") ?? ""),
     dob: String(formData.get("dob") ?? ""),
     gender: String(formData.get("gender") ?? "") as Gender,
-    locationId: String(formData.get("locationId") ?? ""),
-    assignedTeamId: parseNullableId(String(formData.get("assignedTeamId") ?? "")),
+    locationId,
+    assignedTeamId,
     leagueInterestId: parseNullableId(String(formData.get("leagueInterestId") ?? "")),
     playerStatus: (String(formData.get("playerStatus") ?? "") as PlayerStatus) || undefined,
     primaryPosition: (String(formData.get("primaryPosition") ?? "") as PlayerPosition) || undefined,

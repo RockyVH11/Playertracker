@@ -26,10 +26,23 @@ export async function getCoaches() {
   });
 }
 
-export async function getTeamsForSelect(seasonLabel: string) {
-  return await prisma.team.findMany({
+export async function getTeamsForSelect(
+  seasonLabel: string,
+  opts?: { prioritizeCoachId?: string | null }
+) {
+  const rows = await prisma.team.findMany({
     where: { seasonLabel },
     orderBy: { teamName: "asc" },
-    select: { id: true, teamName: true, ageGroup: true, gender: true },
+    select: { id: true, teamName: true, ageGroup: true, gender: true, coachId: true },
   });
+  if (opts?.prioritizeCoachId) {
+    const coachId = opts.prioritizeCoachId;
+    rows.sort((a, b) => {
+      const aOwn = a.coachId === coachId ? 0 : 1;
+      const bOwn = b.coachId === coachId ? 0 : 1;
+      if (aOwn !== bOwn) return aOwn - bOwn;
+      return a.teamName.localeCompare(b.teamName);
+    });
+  }
+  return rows.map(({ coachId: _coachId, ...t }) => t);
 }

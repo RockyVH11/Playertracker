@@ -8,7 +8,7 @@ import {
   upsertAgeRuleAction,
 } from "@/app/actions/admin-age-rules";
 import { nextSeasonLabel } from "@/lib/age-chart-standard";
-import { toYmdUtc } from "@/lib/ui/date";
+import { toUsDateUtc } from "@/lib/ui/date";
 
 type Props = {
   searchParams?: Promise<{ error?: string; season?: string }>;
@@ -149,8 +149,8 @@ export default async function AdminAgeChartPage({ searchParams }: Props) {
             <tr key={r.id}>
               <td className="border-b border-slate-100 px-2 py-2">{r.gender}</td>
               <td className="border-b border-slate-100 px-2 py-2">{r.ageGroup}</td>
-              <td className="border-b border-slate-100 px-2 py-2 font-mono text-xs">{toYmdUtc(r.dobStart)}</td>
-              <td className="border-b border-slate-100 px-2 py-2 font-mono text-xs">{toYmdUtc(r.dobEnd)}</td>
+              <td className="border-b border-slate-100 px-2 py-2 font-mono text-xs">{toUsDateUtc(r.dobStart)}</td>
+              <td className="border-b border-slate-100 px-2 py-2 font-mono text-xs">{toUsDateUtc(r.dobEnd)}</td>
               <td className="border-b border-slate-100 px-2 py-2 text-right">{r.sortOrder}</td>
               <td className="border-b border-slate-100 px-2 py-2">
                 <form action={deleteAgeRuleAction}>

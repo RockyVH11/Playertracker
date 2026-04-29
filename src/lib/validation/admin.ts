@@ -80,3 +80,39 @@ export const coachCreateSchema = z
       }
     }
   });
+
+export const coachUpdateSchema = z
+  .object({
+    coachId: z.string().cuid(),
+    firstName: z.string().trim().min(1).max(120),
+    lastName: z.string().trim().min(1).max(120),
+    email: z.string().trim().max(320),
+    staffRoleLabel: z.string().trim().max(200),
+    primaryAreaLabel: z.string().trim().min(1).max(200),
+    isActive: z.enum(["true", "false"]).transform((v) => v === "true"),
+  })
+  .transform((d) => ({
+    coachId: d.coachId,
+    firstName: d.firstName,
+    lastName: d.lastName,
+    email: d.email.length > 0 ? d.email : undefined,
+    staffRoleLabel: d.staffRoleLabel.length > 0 ? d.staffRoleLabel : undefined,
+    primaryAreaLabel: d.primaryAreaLabel,
+    isActive: d.isActive,
+  }))
+  .superRefine((data, ctx) => {
+    if (data.email) {
+      const r = z.string().email().safeParse(data.email);
+      if (!r.success) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          message: "Invalid email address",
+          path: ["email"],
+        });
+      }
+    }
+  });
+
+export const coachDeleteSchema = z.object({
+  coachId: z.string().cuid(),
+});
