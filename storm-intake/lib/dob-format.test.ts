@@ -2,8 +2,8 @@ import { describe, expect, it } from "vitest";
 import { formatDobDigits } from "./dob-format";
 
 describe("formatDobDigits", () => {
-  it("accepts six digits and inserts slashes with 20xx year", () => {
-    expect(formatDobDigits("010610")).toBe("01/06/2010");
+  it("accepts six digits and inserts slashes with 2-digit year", () => {
+    expect(formatDobDigits("010610")).toBe("01/06/10");
   });
 
   it("formats partial input progressively", () => {
@@ -12,6 +12,6 @@ describe("formatDobDigits", () => {
   });
 
   it("ignores non-digit characters", () => {
-    expect(formatDobDigits("01-06-10")).toBe("01/06/2010");
+    expect(formatDobDigits("01-06-10")).toBe("01/06/10");
   });
 });

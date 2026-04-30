@@ -12,8 +12,8 @@ export function DobInput() {
       required
       inputMode="numeric"
       autoComplete="bday"
-      placeholder="MM/DD/20YY"
-      maxLength={10}
+      placeholder="MM/DD/YY"
+      maxLength={8}
       value={value}
       onChange={(e) => {
         setValue(formatDobDigits(e.target.value));

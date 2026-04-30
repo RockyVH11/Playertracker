@@ -16,7 +16,7 @@ Open `http://localhost:3000` and tap **Start intake**.
 
 You'll pick a **practice location**, then intake defaults that location dropdown (still editable). Use **Stop intake** to exit back to home.
 
-Enter DOB with **6 digits** — it formats to `MM/DD/20YY`.
+Enter DOB with **6 digits** — it formats to `MM/DD/YY` (saved as `20YY` in the database).
 
 ## Monorepo / Vercel
 

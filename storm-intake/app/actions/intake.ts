@@ -34,7 +34,7 @@ export async function intakeCreatePlayerAction(formData: FormData) {
   try {
     dob = parseDobToUtcDate(dobRaw);
   } catch {
-    redirect(`/open-practice/new?error=Enter DOB as MM/DD/20YY.${locationQuery}`);
+    redirect(`/open-practice/new?error=Enter DOB as MM/DD/YY.${locationQuery}`);
   }
 
   let derivedAgeGroup = "Unknown";
