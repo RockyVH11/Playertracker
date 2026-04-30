@@ -13,6 +13,7 @@ import { getCoaches, getLeagues, getLocations, getTeamsForSelect } from "@/lib/d
 import { formatCoachPickerLabel } from "@/lib/ui/formatters";
 import { AgeGroupSelect } from "@/components/form/age-group-select";
 import { needFieldClass, needGkClass } from "@/lib/ui/need-count-style";
+import { DashboardFilterForm } from "@/components/dashboard/dashboard-filter-form";
 
 const schema = z
   .object({
@@ -104,7 +105,7 @@ export default async function DashboardPage({ searchParams }: Props) {
           Club-wide roster planning and unassigned player matching.
         </p>
       </div>
-      <form className="grid grid-cols-1 gap-2 rounded border border-slate-200 bg-white p-3 sm:grid-cols-12" method="get">
+      <DashboardFilterForm className="grid grid-cols-1 gap-2 rounded border border-slate-200 bg-white p-3 sm:grid-cols-12">
         <input className="rounded border border-slate-300 px-2 py-2 text-sm sm:col-span-2" defaultValue={filters.seasonLabel ?? defaultSeason} name="seasonLabel" placeholder="Season" />
         <select className="rounded border border-slate-300 px-2 py-2 text-sm sm:col-span-2" defaultValue={filters.leagueId ?? ""} name="leagueId">
           <option value="">All pathways</option>
@@ -165,7 +166,15 @@ export default async function DashboardPage({ searchParams }: Props) {
           <option value="yes">Play-up: Yes</option>
           <option value="no">Play-up: No</option>
         </select>
-      </form>
+        <div className="flex flex-col gap-2 sm:col-span-12 sm:flex-row sm:items-center sm:justify-between">
+          <p className="text-xs text-slate-500">
+            Dropdown filters apply immediately. After changing the season text, click Apply.
+          </p>
+          <button type="submit" className="rounded bg-slate-900 px-4 py-2 text-sm font-medium text-white">
+            Apply filters
+          </button>
+        </div>
+      </DashboardFilterForm>
 
       <section className="space-y-2">
         <h2 className="text-lg font-semibold text-slate-900">Team status</h2>
