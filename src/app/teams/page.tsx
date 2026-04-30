@@ -20,12 +20,12 @@ export default async function TeamsPage({ searchParams }: Props) {
   const defaultSeason = getServerEnv().DEFAULT_SEASON_LABEL;
   const sp = await searchParams;
   const parsed = teamFilterSchema.safeParse({
-    seasonLabel: typeof sp.seasonLabel === "string" ? sp.seasonLabel : defaultSeason,
-    locationId: typeof sp.locationId === "string" ? sp.locationId : undefined,
-    gender: typeof sp.gender === "string" ? sp.gender : undefined,
-    leagueId: typeof sp.leagueId === "string" ? sp.leagueId : undefined,
-    openSession: typeof sp.openSession === "string" ? sp.openSession : "any",
-    q: typeof sp.q === "string" ? sp.q : undefined,
+    seasonLabel: blankToUndefined(asString(sp.seasonLabel)) ?? defaultSeason,
+    locationId: blankToUndefined(asString(sp.locationId)),
+    gender: blankToUndefined(asString(sp.gender)),
+    leagueId: blankToUndefined(asString(sp.leagueId)),
+    openSession: blankToUndefined(asString(sp.openSession)) ?? "any",
+    q: blankToUndefined(asString(sp.q)),
   });
   const filters = parsed.success
     ? parsed.data
@@ -177,4 +177,13 @@ export default async function TeamsPage({ searchParams }: Props) {
       </div>
     </div>
   );
+}
+
+function asString(v: string | string[] | undefined): string | undefined {
+  return Array.isArray(v) ? v[0] : v;
+}
+
+function blankToUndefined(v: string | undefined): string | undefined {
+  if (!v || v.trim().length === 0) return undefined;
+  return v;
 }
