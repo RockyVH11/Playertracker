@@ -1,17 +1,6 @@
 import type { NextConfig } from "next";
-import path from "node:path";
 
-const appRoot = path.join(__dirname);
-
-/**
- * Monorepo: Next otherwise treats the *repo* root as the Turbopack/tracing root on Vercel and
- * compiles the parent `src/middleware.ts`. Both values must match (Next 16 enforces this).
- */
-const nextConfig: NextConfig = {
-  outputFileTracingRoot: appRoot,
-  turbopack: {
-    root: appRoot,
-  },
-};
+/** Monorepo: do not set `outputFileTracingRoot` here — on Vercel it can make lookups use `/vercel/path0/.next` instead of `./.next`. Parent `middleware.ts` is avoided via `next build --webpack`. */
+const nextConfig: NextConfig = {};
 
 export default nextConfig;
