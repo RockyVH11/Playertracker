@@ -170,9 +170,17 @@ export default async function DashboardPage({ searchParams }: Props) {
           <p className="text-xs text-slate-500">
             Dropdown filters apply immediately. After changing the season text, click Apply.
           </p>
-          <button type="submit" className="rounded bg-slate-900 px-4 py-2 text-sm font-medium text-white">
-            Apply filters
-          </button>
+          <div className="flex items-center gap-2">
+            <Link
+              href={`/dashboard?seasonLabel=${encodeURIComponent(filters.seasonLabel ?? defaultSeason)}`}
+              className="rounded border border-slate-300 px-4 py-2 text-sm"
+            >
+              Reset filters
+            </Link>
+            <button type="submit" className="rounded bg-slate-900 px-4 py-2 text-sm font-medium text-white">
+              Apply filters
+            </button>
+          </div>
         </div>
       </DashboardFilterForm>
 

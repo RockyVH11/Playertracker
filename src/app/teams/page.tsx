@@ -113,9 +113,17 @@ export default async function TeamsPage({ searchParams }: Props) {
           <p className="text-xs text-slate-500">
             Dropdown filters apply immediately. After editing search text, click Apply.
           </p>
-          <button type="submit" className="rounded bg-slate-900 px-4 py-2 text-sm font-medium text-white">
-            Apply filters
-          </button>
+          <div className="flex items-center gap-2">
+            <Link
+              href={`/teams?seasonLabel=${encodeURIComponent(filters.seasonLabel ?? defaultSeason)}`}
+              className="rounded border border-slate-300 px-4 py-2 text-sm"
+            >
+              Reset filters
+            </Link>
+            <button type="submit" className="rounded bg-slate-900 px-4 py-2 text-sm font-medium text-white">
+              Apply filters
+            </button>
+          </div>
         </div>
       </DashboardFilterForm>
       <div className="overflow-x-auto rounded border border-slate-200 bg-white">
