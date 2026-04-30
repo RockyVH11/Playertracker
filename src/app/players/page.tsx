@@ -10,6 +10,7 @@ import { EvaluationLevel, PlayerPosition, PlayerStatus } from "@prisma/client";
 import { AgeGroupSelect } from "@/components/form/age-group-select";
 import { playerFilterSchema } from "@/lib/validation/players";
 import { PostCreatePlayerPrompt } from "@/components/players/post-create-player-prompt";
+import { DashboardFilterForm } from "@/components/dashboard/dashboard-filter-form";
 
 type Props = {
   searchParams: Promise<Record<string, string | string[] | undefined>>;
@@ -69,7 +70,7 @@ export default async function PlayersPage({ searchParams }: Props) {
           New player
         </Link>
       </div>
-      <form className="grid grid-cols-1 gap-2 rounded border border-slate-200 bg-white p-3 sm:grid-cols-12" method="get">
+      <DashboardFilterForm className="grid grid-cols-1 gap-2 rounded border border-slate-200 bg-white p-3 sm:grid-cols-12">
         <input
           className="rounded border border-slate-300 px-2 py-2 text-sm sm:col-span-3"
           defaultValue={filters.q ?? ""}
@@ -173,7 +174,15 @@ export default async function PlayersPage({ searchParams }: Props) {
           ))}
         </select>
         <input name="seasonLabel" type="hidden" value={filters.seasonLabel ?? defaultSeason} />
-      </form>
+        <div className="flex flex-col gap-2 sm:col-span-12 sm:flex-row sm:items-center sm:justify-between">
+          <p className="text-xs text-slate-500">
+            Dropdown filters apply immediately. After editing search text, click Apply.
+          </p>
+          <button type="submit" className="rounded bg-slate-900 px-4 py-2 text-sm font-medium text-white">
+            Apply filters
+          </button>
+        </div>
+      </DashboardFilterForm>
       <div className="overflow-x-auto rounded border border-slate-200 bg-white">
         <table className="min-w-full text-left text-sm">
           <thead className="border-b border-slate-200 bg-slate-50 text-xs font-medium text-slate-600">

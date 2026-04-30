@@ -17,3 +17,7 @@ Open `http://localhost:3000` and tap **Start intake**.
 You'll pick a **practice location**, then intake defaults that location dropdown (still editable). Use **Stop intake** to exit back to home.
 
 Enter DOB with **6 digits** — it formats to `MM/DD/20YY`.
+
+## Monorepo / Vercel
+
+This folder intentionally has **no `package-lock.json`** (ignored here). Two lockfiles confuse Next.js + Vercel (`routes-manifest-deterministic.json` ENOENT under `/vercel/path0/.next`). Use **Root Directory `storm-intake`** and leave **Output directory** unset.
