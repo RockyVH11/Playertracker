@@ -1,6 +1,8 @@
 # See https://help.github.com/articles/ignoring-files/ for more about ignoring files.
 
 # dependencies
+# No lockfile here: a second lockfile makes Next infer the repo root and breaks Vercel’s `.next` path.
+package-lock.json
 /node_modules
 /.pnp
 .pnp.*

@@ -1,6 +1,15 @@
 import type { NextConfig } from "next";
+import path from "node:path";
 
-/** Monorepo: do not set `outputFileTracingRoot` here — on Vercel it can make lookups use `/vercel/path0/.next` instead of `./.next`. Parent `middleware.ts` is avoided via `next build --webpack`. */
-const nextConfig: NextConfig = {};
+/**
+ * Monorepo guard: Next.js warns when multiple package-lock.json files exist and picks the repo
+ * root as the inferred workspace root, which breaks Vercel’s Next builder (looks for `.next/` at `/vercel/path0/.next`).
+ * Pin tracing root to **this app** explicitly. Prod uses `next build --webpack` to avoid compiling the root app’s middleware.
+ *
+ * Storm Intake commits no package-lock.json; only root `Player tracker/package-lock.json` should remain.
+ */
+const nextConfig: NextConfig = {
+  outputFileTracingRoot: path.join(__dirname),
+};
 
 export default nextConfig;
