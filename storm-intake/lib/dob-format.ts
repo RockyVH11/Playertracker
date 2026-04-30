@@ -6,5 +6,5 @@ export function formatDobDigits(value: string): string {
 
   if (digits.length <= 2) return mm;
   if (digits.length <= 4) return `${mm}/${dd}`;
-  return `${mm}/${dd}/20${yy}`;
+  return `${mm}/${dd}/${yy}`;
 }
