@@ -107,6 +107,41 @@ export default async function OpenPracticeNewPage({ searchParams }: Props) {
             </select>
           </label>
         </div>
+        <fieldset className="rounded border border-slate-200 bg-slate-50/80 p-3">
+          <legend className="px-1 text-sm font-medium text-slate-800">Parent / guardian contact</legend>
+          <p className="mb-3 text-xs text-slate-600">Required so coaches can follow up after open practice.</p>
+          <div className="grid gap-3 sm:grid-cols-2">
+            <label className="block space-y-1 text-sm sm:col-span-2">
+              <span>Parent or guardian name</span>
+              <input
+                name="guardianName"
+                required
+                autoComplete="name"
+                className="w-full rounded border border-slate-300 px-2 py-2"
+              />
+            </label>
+            <label className="block space-y-1 text-sm">
+              <span>Parent phone</span>
+              <input
+                name="guardianPhone"
+                type="tel"
+                required
+                autoComplete="tel"
+                className="w-full rounded border border-slate-300 px-2 py-2"
+              />
+            </label>
+            <label className="block space-y-1 text-sm">
+              <span>Parent email</span>
+              <input
+                name="guardianEmail"
+                type="email"
+                required
+                autoComplete="email"
+                className="w-full rounded border border-slate-300 px-2 py-2"
+              />
+            </label>
+          </div>
+        </fieldset>
         <div className="flex items-center gap-3">
           <button type="submit" className="rounded bg-slate-900 px-4 py-2 text-sm text-white">Save player</button>
           <Link href="/" className="rounded border border-slate-300 px-4 py-2 text-sm">Stop intake</Link>

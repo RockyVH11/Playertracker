@@ -6,6 +6,7 @@ import { prisma } from "@/lib/prisma";
 import { getEnv } from "@/lib/env";
 import { deriveAgeGroupForDob } from "@/lib/dob-age";
 import { parseDobToUtcDate } from "@/lib/dob-parse";
+import { parseGuardianContact } from "@/lib/intake-guardian-contact";
 
 function parseNullableId(v: FormDataEntryValue | null): string | null {
   const s = String(v ?? "").trim();
@@ -25,10 +26,19 @@ export async function intakeCreatePlayerAction(formData: FormData) {
   const leagueInterestId = parseNullableId(formData.get("leagueInterestId"));
   const primaryPosition = String(formData.get("primaryPosition") ?? "UNKNOWN") as PlayerPosition;
   const secondaryPosition = parseNullableId(formData.get("secondaryPosition")) as PlayerPosition | null;
+  const guardianCheck = parseGuardianContact({
+    guardianName: String(formData.get("guardianName") ?? ""),
+    guardianPhone: String(formData.get("guardianPhone") ?? ""),
+    guardianEmail: String(formData.get("guardianEmail") ?? ""),
+  });
 
   if (!firstName || !lastName || !locationId || !dobRaw || !gender) {
     redirect(`/open-practice/new?error=Please complete all required fields.${locationQuery}`);
   }
+  if (!guardianCheck.ok) {
+    redirect(`/open-practice/new?error=${encodeURIComponent(guardianCheck.message)}${locationQuery}`);
+  }
+  const { guardianName, guardianPhone, guardianEmail } = guardianCheck;
 
   let dob: Date;
   try {
@@ -66,6 +76,13 @@ export async function intakeCreatePlayerAction(formData: FormData) {
         evaluationLevel: EvaluationLevel.NOT_EVALUATED,
         evaluationNotes: null,
         evaluationUpdatedAt: new Date(),
+        contact: {
+          create: {
+            guardianName,
+            guardianPhone,
+            guardianEmail,
+          },
+        },
       },
     });
   } catch {
