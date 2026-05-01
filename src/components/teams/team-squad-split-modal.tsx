@@ -5,7 +5,7 @@ import {
   finalizeSquadBlackRedSplitAction,
 } from "@/app/actions/teams";
 
-type FormBaseRoute = "teams" | "admin";
+type FormBaseRoute = "teams" | "admin" | "coach-add";
 
 /**
  * Shown after a duplicate auto-generated team name: offer -Black/-Red split workflow.
@@ -21,7 +21,8 @@ export function TeamSquadSplitModal({
 }) {
   if (!show) return null;
 
-  const hiddenBase = formBase === "admin" ? "admin" : "teams";
+  const hiddenBase =
+    formBase === "admin" ? "admin" : formBase === "coach-add" ? "coach-add" : "teams";
 
   return (
     <div
