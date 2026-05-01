@@ -3,8 +3,13 @@
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 
+type PostCreateTeamPromptProps = {
+  /** Super admins use `/teams/new`; coaches use `/teams/add?seasonLabel=…`. */
+  createAnotherHref: string;
+};
+
 /** After creating a team, URL may include promptAddAnother=1 — same UX as players. */
-export function PostCreateTeamPrompt() {
+export function PostCreateTeamPrompt({ createAnotherHref }: PostCreateTeamPromptProps) {
   const router = useRouter();
   const searchParams = useSearchParams();
   const show = searchParams.get("promptAddAnother") === "1";
@@ -43,7 +48,7 @@ export function PostCreateTeamPrompt() {
           <button
             type="button"
             className="rounded bg-slate-900 px-4 py-2 text-sm font-medium text-white hover:bg-slate-800"
-            onClick={() => router.push("/teams/new")}
+            onClick={() => router.push(createAnotherHref)}
           >
             Yes
           </button>

@@ -9,9 +9,17 @@ import { createTeamAction } from "@/app/actions/teams";
 import { AgeGroupSelect } from "@/components/form/age-group-select";
 import { prisma } from "@/lib/prisma";
 
+export const dynamic = "force-dynamic";
+
+const SEASON_LABEL_RE = /^\d{4}-\d{4}$/;
+
 type Props = {
   searchParams: Promise<Record<string, string | string[] | undefined>>;
 };
+
+function oneParam(v: string | string[] | undefined): string | undefined {
+  return Array.isArray(v) ? v[0] : v;
+}
 
 export default async function CoachAddTeamPage({ searchParams }: Props) {
   const session = await getSession();
@@ -32,6 +40,9 @@ export default async function CoachAddTeamPage({ searchParams }: Props) {
   ]);
 
   const sp = await searchParams;
+  const rawSeason = oneParam(sp.seasonLabel)?.trim();
+  const seasonForForm =
+    rawSeason && SEASON_LABEL_RE.test(rawSeason) ? rawSeason : defaultSeason;
   const rawErr = typeof sp.error === "string" ? sp.error : null;
   const error = rawErr ? decodeURIComponent(rawErr) : null;
 
@@ -69,7 +80,7 @@ export default async function CoachAddTeamPage({ searchParams }: Props) {
         action={createTeamAction}
         className="max-w-lg space-y-4 rounded border border-slate-200 bg-white p-4"
       >
-        <input type="hidden" name="seasonLabel" value={defaultSeason} />
+        <input type="hidden" name="seasonLabel" value={seasonForForm} />
         <input type="hidden" name="coachId" value={session.coachId} />
         <input type="hidden" name="_coachSelfCreate" value="1" />
         <input type="hidden" name="returningPlayerCount" value="0" />
