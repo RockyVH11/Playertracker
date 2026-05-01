@@ -25,6 +25,14 @@ Super Admin can edit more (including roster “committed” counts and full cont
 
 Reminder: Coach/team dropdowns primarily scope the **team table**; the player grid follows cohort + scouting filters listed on the dashboard.
 
+## Adding your team (coaches)
+
+1. Go to **Teams** and choose **Add your team** (`/teams/add`). *(Super admins use **New team** instead for full options.)*
+2. Pick **location**, **boys or girls**, **age group**, and optionally a **league / pathway**.
+3. Leave **No league in the name** if that squad does not pathway branding in the label (typical for some internal sides). With a pathway selected, the league’s words appear in the middle of the auto name between the age band (**U11B** / **U11G**) and your **last name** as listed on your coach profile.
+4. The app builds the display name—you cannot type a different label. Format matches **`CLUB_DISPLAY_NAME`** from server config (e.g. Kernow Storm FC): `{club} {UxB|UxG} [pathway tokens…] {YourLast}`.
+5. **`committed`** roster counts stay at zero until a super admin sets them. If your generated name matches an existing season team, stop and ask an admin—they can resolve duplicates or assign **-Black / -Red** parallel squads.
+
 ## Players and teams
 
 - **Teams:** open a team from the list or dashboard links to `/teams/[id]` for recruiting context.

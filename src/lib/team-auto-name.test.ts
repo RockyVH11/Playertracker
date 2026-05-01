@@ -14,6 +14,18 @@ describe("team-auto-name", () => {
     expect(s).toBe("Kernow Storm U19G N1 NTx D1 Van Husen");
   });
 
+  it("omits league tokens when league is omitted (internal / no-pathway squad)", () => {
+    expect(
+      buildAutoTeamBaseName({
+        clubName: "Kernow Storm FC",
+        ageGroup: "U11",
+        gender: Gender.BOYS,
+        leagueName: null,
+        coachLastName: "Jurado",
+      })
+    ).toBe("Kernow Storm FC U11B Jurado");
+  });
+
   it("supports -Black squad suffix convention", () => {
     const base = buildAutoTeamBaseName({
       clubName: "Kernow Storm",

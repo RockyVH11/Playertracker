@@ -11,6 +11,7 @@ import { redirect } from "next/navigation";
 import { prisma } from "@/lib/prisma";
 
 import { getSession } from "@/lib/auth/session";
+import { isCoachSession } from "@/lib/auth/types";
 
 import { getServerEnv } from "@/lib/env";
 
@@ -153,13 +154,30 @@ export async function createTeamAction(formData: FormData) {
 
   if (!session) redirect("/login");
 
+  const coachSelfServe = String(formData.get("_coachSelfCreate") ?? "") === "1";
+
   const returnToAdmin = String(formData.get("_returnToAdmin") ?? "") === "1";
 
-  const formBase = returnToAdmin ? "/admin/teams/new" : "/teams/new";
+  const formBase = coachSelfServe
+    ? "/teams/add"
+    : returnToAdmin
+      ? "/admin/teams/new"
+      : "/teams/new";
 
-
+  if (coachSelfServe && !isCoachSession(session)) {
+    redirect(toTeamsErrorUrl(formBase, "Only coaches can add a team from this page."));
+  }
 
   const manual = String(formData.get("teamNameManual") ?? "").trim();
+
+  if (coachSelfServe && manual.length > 0) {
+    redirect(
+      toTeamsErrorUrl(
+        formBase,
+        "Team names are generated automatically for coaches. Do not submit a manual display name override."
+      )
+    );
+  }
 
 
 
@@ -225,9 +243,14 @@ export async function createTeamAction(formData: FormData) {
 
 
 
-  const interim = interimParsed.data;
+  let interim = interimParsed.data;
 
-
+  if (coachSelfServe) {
+    if (!isCoachSession(session)) {
+      redirect(toTeamsErrorUrl(formBase, "Only coaches can add a team from this page."));
+    }
+    interim = { ...interim, coachId: session.coachId };
+  }
 
   let resolvedName: string;
 
@@ -283,6 +306,22 @@ export async function createTeamAction(formData: FormData) {
 
   if (clash) {
 
+    if (coachSelfServe) {
+
+      redirect(
+
+        toTeamsErrorUrl(
+
+          formBase,
+
+          "A team with this name already exists for this season. Ask a super admin if you need a parallel squad (-Black / -Red)."
+
+        )
+
+      );
+
+    }
+
     if (manual.length > 0) {
 
       redirect(
@@ -334,6 +373,8 @@ export async function createTeamAction(formData: FormData) {
     const created = await createTeam({
 
       session,
+
+      coachSelfServe,
 
       data: {
 
