@@ -199,15 +199,13 @@ export default async function PlayersPage({ searchParams }: Props) {
               <th className="px-3 py-2">Name</th>
               <th className="px-3 py-2">Age group</th>
               <th className="px-3 py-2">DOB</th>
-              <th className="px-3 py-2">Eval</th>
-              <th className="px-3 py-2">Status</th>
               <th className="px-3 py-2">Team</th>
             </tr>
           </thead>
           <tbody>
             {players.length === 0 && (
               <tr>
-                <td className="px-3 py-6 text-slate-600" colSpan={6}>
+                <td className="px-3 py-6 text-slate-600" colSpan={4}>
                   No players yet.
                 </td>
               </tr>
@@ -224,11 +222,6 @@ export default async function PlayersPage({ searchParams }: Props) {
                   {p.willingToPlayUp ? " · play-up" : ""}
                 </td>
                 <td className="px-3 py-2 whitespace-nowrap">{toUsDateUtc(p.dob)}</td>
-                <td className="px-3 py-2">{formatEval(p.evaluationLevel)}</td>
-                <td className="px-3 py-2">
-                  {p.playerStatus}
-                  {p.assignedTeamId == null && " · (pool)"}
-                </td>
                 <td className="px-3 py-2">
                   {p.assignedTeam
                     ? `${p.assignedTeam.teamName} (${p.assignedTeam.coach.lastName})`
