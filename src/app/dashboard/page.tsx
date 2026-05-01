@@ -22,6 +22,7 @@ import {
 } from "@/lib/dashboard/player-grid-sort";
 import type { DashboardQueryValues } from "@/lib/dashboard/dashboard-query-params";
 import { DashboardPlayerSortTh } from "@/components/dashboard/dashboard-player-sort-th";
+import { DashboardTableCopySection } from "@/components/dashboard/dashboard-table-copy-section";
 
 const schema = z
   .object({
@@ -141,6 +142,7 @@ export default async function DashboardPage({ searchParams }: Props) {
   const sortDir: "asc" | "desc" = filters.pDir === "desc" ? "desc" : "asc";
   const sortedPlayers = sortDashboardPlayerRows(matchingPlayers, sortKey, sortDir);
   const dashboardQuerySnap = dashboardFiltersToSnapshot(filters, defaultSeason);
+  const seasonForCopy = filters.seasonLabel ?? defaultSeason;
 
   return (
     <div className="space-y-6">
@@ -333,8 +335,11 @@ export default async function DashboardPage({ searchParams }: Props) {
         </div>
       </DashboardFilterForm>
 
-      <section className="space-y-2">
-        <h2 className="text-lg font-semibold text-slate-900">Team status</h2>
+      <DashboardTableCopySection
+        title="Team status"
+        copyIntro={`Team status · Season ${seasonForCopy} · Tab-separated (paste into Excel or email)`}
+        copyButtonLabel="Copy table"
+      >
         <div className="overflow-x-auto rounded border border-slate-200 bg-white">
           <table className="min-w-full text-left text-sm">
             <thead className="bg-slate-50 text-xs text-slate-600">
@@ -399,10 +404,13 @@ export default async function DashboardPage({ searchParams }: Props) {
             </tbody>
           </table>
         </div>
-      </section>
+      </DashboardTableCopySection>
 
-      <section className="space-y-2">
-        <h2 className="text-lg font-semibold text-slate-900">Players matching filters</h2>
+      <DashboardTableCopySection
+        title="Players matching filters"
+        copyIntro={`Players matching filters · Season ${seasonForCopy} · Tab-separated (paste into Excel or email)`}
+        copyButtonLabel="Copy table"
+      >
         <p className="text-xs text-slate-600">
           Includes rostered athletes and pool players. The team and coach filters apply to the roster table
           only; pathway, location, gender, cohort, dates, eval, status, position, and play-up refine this grid.
@@ -463,7 +471,7 @@ export default async function DashboardPage({ searchParams }: Props) {
             </tbody>
           </table>
         </div>
-      </section>
+      </DashboardTableCopySection>
     </div>
   );
 }
