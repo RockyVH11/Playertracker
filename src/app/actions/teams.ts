@@ -70,6 +70,17 @@ function parseLeagueId(s: string | null) {
 
 }
 
+/** Hidden `_formBase` on squad-split modal: where to return after discard or errors. */
+function teamDraftFormPath(formBaseHidden: string | null | undefined): string {
+
+  if (formBaseHidden === "admin") return "/admin/teams/new";
+
+  if (formBaseHidden === "coach-add") return "/teams/add";
+
+  return "/teams/new";
+
+}
+
 
 
 function toTeamsErrorUrl(path: string, message: string) {
@@ -306,22 +317,6 @@ export async function createTeamAction(formData: FormData) {
 
   if (clash) {
 
-    if (coachSelfServe) {
-
-      redirect(
-
-        toTeamsErrorUrl(
-
-          formBase,
-
-          "A team with this name already exists for this season. Ask a super admin if you need a parallel squad (-Black / -Red)."
-
-        )
-
-      );
-
-    }
-
     if (manual.length > 0) {
 
       redirect(
@@ -459,27 +454,17 @@ export async function createTeamAction(formData: FormData) {
 export async function finalizeSquadBlackRedSplitAction(formData: FormData) {
   const session = await getSession();
 
-  if (!session || session.role !== "SUPER_ADMIN") redirect("/login");
+  if (!session) redirect("/login");
 
+  const formBaseHidden =
 
+    typeof formData?.get("_formBase") === "string" ? String(formData.get("_formBase")) : "";
 
-  const formBaseParam = typeof formData?.get("_formBase") === "string"
-
-    ? formData!.get("_formBase") === "admin"
-
-      ? "/admin/teams/new"
-
-      : "/teams/new"
-
-    : "/teams/new";
-
-
+  const formBaseParam = teamDraftFormPath(formBaseHidden);
 
   const store = await cookies();
 
   const rawDraft = store.get(TEAM_SQUAD_DRAFT_COOKIE)?.value;
-
-
 
   let draft: SquadDraftV1;
 
@@ -503,7 +488,45 @@ export async function finalizeSquadBlackRedSplitAction(formData: FormData) {
 
   }
 
+  if (session.role !== "SUPER_ADMIN") {
 
+    if (!isCoachSession(session)) {
+
+      redirect(toTeamsErrorUrl(formBaseParam, "Not allowed."));
+
+    }
+
+    if (draft.body.coachId !== session.coachId) {
+
+      redirect(toTeamsErrorUrl(formBaseParam, "Not allowed."));
+
+    }
+
+    const clashOwner = await prisma.team.findFirst({
+
+      where: { id: draft.clashTeamId },
+
+      select: { coachId: true, seasonLabel: true },
+
+    });
+
+    if (!clashOwner || clashOwner.coachId !== session.coachId) {
+
+      redirect(
+
+        toTeamsErrorUrl(
+
+          formBaseParam,
+
+          "Only the coach who already owns the duplicate roster name can split into -Black/-Red here—or ask an admin."
+
+        )
+
+      );
+
+    }
+
+  }
 
   const baseRaw = draft.baseDisplayCore.trim();
 
@@ -653,9 +676,13 @@ export async function finalizeSquadBlackRedSplitAction(formData: FormData) {
 
   }
 
-  const q = `promptAddAnother=1&newTeam=${encodeURIComponent(newId)}`;
+  const listQs = new URLSearchParams({
+    seasonLabel: pdata.seasonLabel,
+    promptAddAnother: "1",
+    newTeam: newId,
+  });
 
-  redirect(`/teams?${q}`);
+  redirect(`/teams?${listQs.toString()}`);
 
 }
 
@@ -664,23 +691,17 @@ export async function finalizeSquadBlackRedSplitAction(formData: FormData) {
 export async function discardTeamSquadDraftAction(formData: FormData) {
   const session = await getSession();
 
-  if (!session || session.role !== "SUPER_ADMIN") redirect("/login");
+  if (!session || !(session.role === "SUPER_ADMIN" || isCoachSession(session))) redirect("/login");
 
   const store = await cookies();
 
   store.delete(TEAM_SQUAD_DRAFT_COOKIE);
 
-  const formBaseParam = typeof formData?.get("_formBase") === "string"
+  const formBaseHidden =
 
-    ? formData!.get("_formBase") === "admin"
+    typeof formData?.get("_formBase") === "string" ? String(formData.get("_formBase")) : "";
 
-      ? "/admin/teams/new"
-
-      : "/teams/new"
-
-    : "/teams/new";
-
-  redirect(formBaseParam);
+  redirect(teamDraftFormPath(formBaseHidden));
 
 }
 

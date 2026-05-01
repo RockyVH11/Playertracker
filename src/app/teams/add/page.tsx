@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
 import { Gender } from "@prisma/client";
 import { getSession } from "@/lib/auth/session";
@@ -9,6 +10,8 @@ import { createTeamAction } from "@/app/actions/teams";
 import { AgeGroupSelect } from "@/components/form/age-group-select";
 import { prisma } from "@/lib/prisma";
 import { coerceRosterSeasonQueryParam } from "@/lib/teams/roster-season-filter";
+import { TEAM_SQUAD_DRAFT_COOKIE } from "@/lib/team-squad-draft";
+import { TeamSquadSplitModal } from "@/components/teams/team-squad-split-modal";
 
 export const dynamic = "force-dynamic";
 
@@ -47,10 +50,14 @@ export default async function CoachAddTeamPage({ searchParams }: Props) {
   const rawErr = typeof sp.error === "string" ? sp.error : null;
   const error = rawErr ? decodeURIComponent(rawErr) : null;
 
+  const squadDup = typeof sp.squadDup === "string" && sp.squadDup === "1";
+  const hasDraft = !!(await cookies()).get(TEAM_SQUAD_DRAFT_COOKIE)?.value;
+
   const coachLast = coachRow?.lastName?.trim() || "your last name";
 
   return (
     <div className="space-y-6">
+      <TeamSquadSplitModal show={squadDup} stale={squadDup && !hasDraft} formBase="coach-add" />
       <div>
         <p className="text-sm">
           <Link className="text-slate-600 hover:underline" href="/teams">
@@ -128,6 +135,7 @@ export default async function CoachAddTeamPage({ searchParams }: Props) {
           <label className="block space-y-1 text-sm">
             <span className="font-medium">Age group</span>
             <AgeGroupSelect
+              emptyLabel="Choose age group"
               name="ageGroup"
               required
               className="w-full rounded border border-slate-300 px-2 py-2"
@@ -161,9 +169,9 @@ export default async function CoachAddTeamPage({ searchParams }: Props) {
           />
         </label>
         <p className="text-xs text-slate-500">
-          You cannot type a custom display name; the app builds it from these fields and your roster
-          last name. Super admin can adjust rare cases or add a second squad (-Black / -Red) if there is
-          a duplicate name.
+          You cannot type a custom display name; the app builds it from these fields and your roster last
+          name. If another squad would share that label, confirm the <strong>-Black / -Red</strong> prompt
+          or ask admin for manual tweaks.
         </p>
         <div className="flex flex-wrap gap-3">
           <button

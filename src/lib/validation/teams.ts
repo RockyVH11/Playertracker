@@ -9,18 +9,19 @@ export const teamCreateSchema = z
       .trim()
       .regex(/^\d{4}-\d{4}$/, "Use format 2026-2027"),
     teamName: z.string().trim().min(1).max(240),
-    locationId: z.string().min(1),
+    locationId: z.string().cuid("Pick a location"),
     gender: z.nativeEnum(Gender),
     ageGroup: z
       .string()
       .trim()
       .refine(isYouthAgeGroup, "Select an age group (U6–U17 or U19)"),
-    coachId: z.string().min(1),
+    coachId: z.string().cuid(),
     leagueId: z.string().optional().nullable(),
+    /** Forms send "on"|"off"; squad-split drafts in cookies use booleans after JSON.parse. */
     openSession: z
-      .union([z.literal("on"), z.literal("off")])
+      .union([z.boolean(), z.literal("on"), z.literal("off")])
       .optional()
-      .transform((v) => v === "on"),
+      .transform((v) => v === true || v === "on"),
     committedPlayerCount: z.coerce.number().int().min(0),
     coachEstimatedPlayerCount: z.coerce.number().int().min(0),
     returningPlayerCount: z.coerce.number().int().min(0).optional().default(0),
@@ -32,8 +33,9 @@ export const teamCreateSchema = z
     neededUtility: z.coerce.number().int().min(0).optional().default(0),
     recruitingNeeds: z.string().optional().nullable(),
     notes: z.string().optional().nullable(),
-  })
-  .strict();
+  });
+  // Note: intentionally not `.strict()` — `<form action={serverAction}>` browsers / Next.js may attach
+  // extra FormData entries; unknown keys are stripped by Zod objects by default.
 
 /** Validates create-team fields before the display name is resolved (auto vs manual). */
 export const teamCreateFieldsWithoutNameSchema = teamCreateSchema.omit({ teamName: true });
@@ -41,7 +43,8 @@ export const teamCreateFieldsWithoutNameSchema = teamCreateSchema.omit({ teamNam
 export type TeamCreateWithoutNameInput = z.infer<typeof teamCreateFieldsWithoutNameSchema>;
 
 export function firstTeamFormIssueMessage(error: z.ZodError): string {
-  return error.issues[0]?.message ?? "Invalid team form.";
+  const top = error.issues.slice(0, 3).map((i) => i.message);
+  return top.join(" ") || "Invalid team form.";
 }
 
 export const teamIdSchema = z.object({ id: z.string().cuid() });
