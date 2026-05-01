@@ -236,7 +236,25 @@ export async function createTeam(input: {
     recruitingNeeds: string | null;
     notes: string | null;
   };
+  /** Coach “add my team” flow: must own `coachId`; admin-only counts are forced to zero. */
+  coachSelfServe?: boolean;
 }): Promise<{ id: string }> {
+  if (input.coachSelfServe) {
+    if (!isCoachSession(input.session)) {
+      throw new Error("Not allowed");
+    }
+    if (input.data.coachId !== input.session.coachId) {
+      throw new Error("Not allowed");
+    }
+    const data = {
+      ...input.data,
+      committedPlayerCount: 0,
+    };
+    const team = await prisma.team.create({
+      data: prismaTeamUncheckedCreatePayload(data),
+    });
+    return { id: team.id };
+  }
   assertSuperAdmin(input.session);
   const team = await prisma.team.create({
     data: prismaTeamUncheckedCreatePayload(input.data),

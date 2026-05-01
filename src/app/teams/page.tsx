@@ -50,14 +50,24 @@ export default async function TeamsPage({ searchParams }: Props) {
             Season <span className="font-medium">{defaultSeason}</span>
           </p>
         </div>
-        {session.role === "SUPER_ADMIN" && (
-          <Link
-            className="rounded bg-slate-900 px-3 py-2 text-sm font-medium text-white hover:bg-slate-800"
-            href="/teams/new"
-          >
-            New team
-          </Link>
-        )}
+        <div className="flex flex-wrap gap-2">
+          {session.role === "SUPER_ADMIN" && (
+            <Link
+              className="rounded bg-slate-900 px-3 py-2 text-sm font-medium text-white hover:bg-slate-800"
+              href="/teams/new"
+            >
+              New team
+            </Link>
+          )}
+          {isCoachSession(session) && (
+            <Link
+              className="rounded border border-slate-300 bg-white px-3 py-2 text-sm font-medium text-slate-900 shadow-sm hover:bg-slate-50"
+              href="/teams/add"
+            >
+              Add your team
+            </Link>
+          )}
+        </div>
       </div>
       <DashboardFilterForm className="grid grid-cols-1 gap-2 rounded border border-slate-200 bg-white p-3 sm:grid-cols-6">
         <input

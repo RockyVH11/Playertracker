@@ -47,6 +47,10 @@ Open [http://localhost:3000](http://localhost:3000) — you will be redirected t
 - Teams and players CRUD with role-based rules; contact hidden unless policy allows; soft duplicate warning on create.
 - Team-building dashboard route at `/dashboard` with team status + unassigned player matching filters.
 
+## Coach quick start
+
+Day-to-day usage for coaches (login, dashboard filters, copy tables, permissions overview): [`docs/coach-quick-guide.md`](./docs/coach-quick-guide.md).
+
 ## Permission Matrix (MVP)
 
 - **Super Admin**
