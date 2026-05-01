@@ -15,6 +15,13 @@ import { AgeGroupSelect } from "@/components/form/age-group-select";
 import { needFieldClass, needGkClass } from "@/lib/ui/need-count-style";
 import { DashboardFilterForm } from "@/components/dashboard/dashboard-filter-form";
 import { parseDashYmdToUtcDate, toUsDateUtc } from "@/lib/ui/date";
+import {
+  sortDashboardPlayerRows,
+  isPlayerGridSortKey,
+  type PlayerGridSortKey,
+} from "@/lib/dashboard/player-grid-sort";
+import type { DashboardQueryValues } from "@/lib/dashboard/dashboard-query-params";
+import { DashboardPlayerSortTh } from "@/components/dashboard/dashboard-player-sort-th";
 
 const schema = z
   .object({
@@ -33,6 +40,8 @@ const schema = z
     playerStatus: z.nativeEnum(PlayerStatus).optional(),
     playerPosition: z.nativeEnum(PlayerPosition).optional(),
     willingToPlayUp: z.enum(["any", "yes", "no"]).optional(),
+    pSort: z.string().optional(),
+    pDir: z.enum(["asc", "desc"]).optional(),
   })
   .strict();
 
@@ -74,13 +83,20 @@ export default async function DashboardPage({ searchParams }: Props) {
     playerStatus: blankToUndefined(one(sp.playerStatus)) ?? legacyStatus,
     playerPosition: blankToUndefined(one(sp.playerPosition)) ?? legacyPosition,
     willingToPlayUp: blankToUndefined(one(sp.willingToPlayUp)) ?? "any",
+    pSort: blankToUndefined(one(sp.pSort)),
+    pDir:
+      blankToUndefined(one(sp.pDir)) === "desc"
+        ? ("desc" as const)
+        : blankToUndefined(one(sp.pDir)) === "asc"
+          ? ("asc" as const)
+          : undefined,
   });
-  const filters = parsed.success
+  const filters: z.infer<typeof schema> = parsed.success
     ? parsed.data
     : {
         seasonLabel: defaultSeason,
-        teamSort: "team" as const,
-        willingToPlayUp: "any" as const,
+        teamSort: "team",
+        willingToPlayUp: "any",
       };
 
   const dobRange = normalizeDobRange(filters.dobMin, filters.dobMax);
@@ -119,16 +135,26 @@ export default async function DashboardPage({ searchParams }: Props) {
     }),
   ]);
 
+  const sortKey: PlayerGridSortKey = isPlayerGridSortKey(filters.pSort)
+    ? filters.pSort
+    : "player";
+  const sortDir: "asc" | "desc" = filters.pDir === "desc" ? "desc" : "asc";
+  const sortedPlayers = sortDashboardPlayerRows(matchingPlayers, sortKey, sortDir);
+  const dashboardQuerySnap = dashboardFiltersToSnapshot(filters, defaultSeason);
+
   return (
     <div className="space-y-6">
       <div>
         <h1 className="text-2xl font-semibold text-slate-900">Team-building dashboard</h1>
         <p className="text-sm text-slate-600">
           Filter teams above, then see every matching player below (assigned and pool). Use age cohort
-          and DOB spans to widen or narrow rows.
+          and DOB spans to widen or narrow rows. Click player grid column headers to sort (↑ first click
+          ascending, second click toggles descending).
         </p>
       </div>
       <DashboardFilterForm className="grid grid-cols-1 gap-2 rounded border border-slate-200 bg-white p-3 sm:grid-cols-12">
+        <input type="hidden" name="pSort" value={sortKey} />
+        <input type="hidden" name="pDir" value={sortDir} />
         <span className="text-xs font-medium uppercase tracking-wide text-slate-500 sm:col-span-12">
           Team roster view
         </span>
@@ -316,7 +342,7 @@ export default async function DashboardPage({ searchParams }: Props) {
                 <th className="px-2 py-2">Team</th>
                 <th className="px-2 py-2">Coach</th>
                 <th className="px-2 py-2">Location</th>
-                <th className="px-2 py-2">G/A</th>
+                <th className="px-2 py-2">Age group</th>
                 <th className="px-2 py-2">League</th>
                 <th className="px-2 py-2">Open</th>
                 <th className="px-2 py-2 text-right">Prospects</th>
@@ -385,26 +411,26 @@ export default async function DashboardPage({ searchParams }: Props) {
           <table className="min-w-full text-left text-sm">
             <thead className="bg-slate-50 text-xs text-slate-600">
               <tr>
-                <th className="px-2 py-2">Player</th>
-                <th className="px-2 py-2">G/A</th>
-                <th className="px-2 py-2">DOB</th>
-                <th className="px-2 py-2">Location</th>
-                <th className="px-2 py-2">Eval</th>
-                <th className="px-2 py-2">Status</th>
-                <th className="px-2 py-2">Position</th>
-                <th className="px-2 py-2">Play up</th>
-                <th className="px-2 py-2">Coach / team</th>
+                <DashboardPlayerSortTh col="player" label="Player" querySnapshot={dashboardQuerySnap} />
+                <DashboardPlayerSortTh col="age" label="Age group" querySnapshot={dashboardQuerySnap} />
+                <DashboardPlayerSortTh col="dob" label="DOB" querySnapshot={dashboardQuerySnap} />
+                <DashboardPlayerSortTh col="location" label="Location" querySnapshot={dashboardQuerySnap} />
+                <DashboardPlayerSortTh col="eval" label="Eval" querySnapshot={dashboardQuerySnap} />
+                <DashboardPlayerSortTh col="status" label="Status" querySnapshot={dashboardQuerySnap} />
+                <DashboardPlayerSortTh col="position" label="Position" querySnapshot={dashboardQuerySnap} />
+                <DashboardPlayerSortTh col="playUp" label="Play up" querySnapshot={dashboardQuerySnap} />
+                <DashboardPlayerSortTh col="team" label="Coach / team" querySnapshot={dashboardQuerySnap} />
               </tr>
             </thead>
             <tbody>
-              {matchingPlayers.length === 0 && (
+              {sortedPlayers.length === 0 && (
                 <tr>
                   <td className="px-2 py-6 text-slate-600" colSpan={9}>
                     No players match the current cohort filters (or tighten age / DOB if the range ended up empty).
                   </td>
                 </tr>
               )}
-              {matchingPlayers.map((p) => (
+              {sortedPlayers.map((p) => (
                 <tr className="border-t border-slate-100" key={p.id}>
                   <td className="px-2 py-2">
                     <Link href={`/players/${p.id}`}>
@@ -459,4 +485,29 @@ function normalizeDobRange(
 function blankToUndefined(v: string | undefined): string | undefined {
   if (!v || v.trim().length === 0) return undefined;
   return v;
+}
+
+function dashboardFiltersToSnapshot(
+  f: z.infer<typeof schema>,
+  defaultSeason: string
+): DashboardQueryValues {
+  return {
+    seasonLabel: f.seasonLabel ?? defaultSeason,
+    leagueId: f.leagueId,
+    locationId: f.locationId,
+    gender: f.gender,
+    ageGroupMin: f.ageGroupMin,
+    ageGroupMax: f.ageGroupMax,
+    coachId: f.coachId,
+    teamId: f.teamId,
+    teamSort: f.teamSort,
+    dobMin: f.dobMin,
+    dobMax: f.dobMax,
+    playerEvaluation: f.playerEvaluation,
+    playerStatus: f.playerStatus,
+    playerPosition: f.playerPosition,
+    willingToPlayUp: f.willingToPlayUp,
+    pSort: f.pSort,
+    pDir: f.pDir,
+  };
 }
