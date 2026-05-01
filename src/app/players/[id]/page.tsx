@@ -17,6 +17,7 @@ import {
 } from "@prisma/client";
 import { AgeGroupSelect } from "@/components/form/age-group-select";
 import { DobInput } from "@/components/form/dob-input";
+import { PlayerDetailToggle } from "@/components/players/player-detail-toggle";
 
 const evalOrder: EvaluationLevel[] = [
   "RL",
@@ -65,97 +66,116 @@ export default async function PlayerDetailPage({ params, searchParams }: Props) 
           {error}
         </div>
       )}
-      <div>
-        <h1 className="text-2xl font-semibold text-slate-900">
-          {p.lastName}, {p.firstName}
-        </h1>
-        <p className="text-sm text-slate-600">Season {p.seasonLabel}</p>
-      </div>
-      <div className="grid gap-2 text-sm sm:grid-cols-2">
-        <div>
-          <div className="text-xs text-slate-500">Location</div>
-          <div>{p.location.name}</div>
-        </div>
-        <div>
-          <div className="text-xs text-slate-500">Date of birth</div>
-          <div>{toUsDateUtc(p.dob)}</div>
-        </div>
-        <div>
-          <div className="text-xs text-slate-500">Age group (derived / override)</div>
-          <div>
-            {p.derivedAgeGroup}
-            {p.overrideAgeGroup
-              ? ` → override: ${p.overrideAgeGroup}`
-              : ""}
+      <PlayerDetailToggle
+        title={
+          <>
+            {p.lastName}, {p.firstName}
+          </>
+        }
+        seasonLine={<>Season {p.seasonLabel}</>}
+        summary={
+          <div className="rounded border border-slate-200 bg-white p-4 text-sm">
+            <div className="grid gap-4 sm:grid-cols-2">
+              <div>
+                <div className="text-xs text-slate-500">Age group</div>
+                <div className="font-medium text-slate-900">
+                  {p.overrideAgeGroup ?? p.derivedAgeGroup}
+                </div>
+                {p.overrideAgeGroup ? (
+                  <div className="mt-1 text-xs text-slate-500">
+                    Chart: {p.derivedAgeGroup} · Override applied
+                  </div>
+                ) : null}
+              </div>
+              <div>
+                <div className="text-xs text-slate-500">Date of birth</div>
+                <div className="font-medium text-slate-900">{toUsDateUtc(p.dob)}</div>
+              </div>
+              <div className="sm:col-span-2">
+                <div className="text-xs text-slate-500">Team or pool</div>
+                <div className="font-medium text-slate-900">
+                  {p.assignedTeam
+                    ? `${p.assignedTeam.teamName} (${p.assignedTeam.coach.lastName})`
+                    : "Pool (unassigned)"}
+                </div>
+              </div>
+            </div>
           </div>
-        </div>
-        <div>
-          <div className="text-xs text-slate-500">Pipeline</div>
-          <div>{p.playerStatus}</div>
-        </div>
-        <div>
-          <div className="text-xs text-slate-500">League interest</div>
-          <div>{p.leagueInterest?.name ?? "—"}</div>
-        </div>
-        <div>
-          <div className="text-xs text-slate-500">Assigned team</div>
-          <div>
-            {p.assignedTeam
-              ? `${p.assignedTeam.teamName} (${p.assignedTeam.coach.lastName})`
-              : "— (pool / unassigned)"}
-          </div>
-        </div>
-        <div>
-          <div className="text-xs text-slate-500">Willing to play up</div>
-          <div>{p.willingToPlayUp ? "Yes" : "No"}</div>
-        </div>
-        <div>
-          <div className="text-xs text-slate-500">Primary position</div>
-          <div>{p.primaryPosition}</div>
-        </div>
-        <div>
-          <div className="text-xs text-slate-500">Secondary position</div>
-          <div>{p.secondaryPosition ?? "—"}</div>
-        </div>
-        <div>
-          <div className="text-xs text-slate-500">Source</div>
-          <div>{p.playerSource}</div>
-        </div>
-        <div>
-          <div className="text-xs text-slate-500">Placement priority</div>
-          <div>{p.placementPriority}</div>
-        </div>
-      </div>
-      <div className="rounded border border-slate-200 bg-white p-3 text-sm">
-        <div className="text-xs text-slate-500">Latest evaluation</div>
-        <p className="mt-1 font-medium">{formatEval(p.evaluationLevel)}</p>
-        {p.evaluationNotes && <p className="mt-2 whitespace-pre-wrap">{p.evaluationNotes}</p>}
-        <p className="mt-2 text-xs text-slate-500">
-          {p.evaluationAuthorCoach
-            ? `By ${p.evaluationAuthorCoach.lastName}, ${p.evaluationAuthorCoach.firstName}`
-            : "—"}
-          {p.evaluationUpdatedAt
-            ? ` · ${p.evaluationUpdatedAt.toISOString().slice(0, 10)}`
-            : ""}
-        </p>
-      </div>
-      {showContact && p.contact && (
-        <div className="rounded border border-slate-200 bg-slate-50 p-3 text-sm">
-          <div className="text-xs font-medium text-slate-600">Parent / guardian</div>
-          <div className="mt-1 space-y-1">
-            <div>{p.contact.guardianName || "—"}</div>
-            <div>{p.contact.guardianPhone || "—"}</div>
-            <div>{p.contact.guardianEmail || "—"}</div>
-          </div>
-        </div>
-      )}
-      {!showContact && (
-        <p className="text-sm text-slate-600">
-          Parent contact is hidden. Reach out to the player&apos;s listed coach for
-          outreach.
-        </p>
-      )}
-      {canEdit && (
+        }
+        details={
+          <>
+            <div className="grid gap-2 text-sm sm:grid-cols-2">
+              <div>
+                <div className="text-xs text-slate-500">Location</div>
+                <div>{p.location.name}</div>
+              </div>
+              <div>
+                <div className="text-xs text-slate-500">Pipeline</div>
+                <div>{p.playerStatus}</div>
+              </div>
+              <div>
+                <div className="text-xs text-slate-500">League interest</div>
+                <div>{p.leagueInterest?.name ?? "—"}</div>
+              </div>
+              <div>
+                <div className="text-xs text-slate-500">Assigned team</div>
+                <div>
+                  {p.assignedTeam
+                    ? `${p.assignedTeam.teamName} (${p.assignedTeam.coach.lastName})`
+                    : "— (pool / unassigned)"}
+                </div>
+              </div>
+              <div>
+                <div className="text-xs text-slate-500">Willing to play up</div>
+                <div>{p.willingToPlayUp ? "Yes" : "No"}</div>
+              </div>
+              <div>
+                <div className="text-xs text-slate-500">Primary position</div>
+                <div>{p.primaryPosition}</div>
+              </div>
+              <div>
+                <div className="text-xs text-slate-500">Secondary position</div>
+                <div>{p.secondaryPosition ?? "—"}</div>
+              </div>
+              <div>
+                <div className="text-xs text-slate-500">Source</div>
+                <div>{p.playerSource}</div>
+              </div>
+              <div>
+                <div className="text-xs text-slate-500">Placement priority</div>
+                <div>{p.placementPriority}</div>
+              </div>
+            </div>
+            <div className="rounded border border-slate-200 bg-white p-3 text-sm">
+              <div className="text-xs text-slate-500">Latest evaluation</div>
+              <p className="mt-1 font-medium">{formatEval(p.evaluationLevel)}</p>
+              {p.evaluationNotes && <p className="mt-2 whitespace-pre-wrap">{p.evaluationNotes}</p>}
+              <p className="mt-2 text-xs text-slate-500">
+                {p.evaluationAuthorCoach
+                  ? `By ${p.evaluationAuthorCoach.lastName}, ${p.evaluationAuthorCoach.firstName}`
+                  : "—"}
+                {p.evaluationUpdatedAt
+                  ? ` · ${p.evaluationUpdatedAt.toISOString().slice(0, 10)}`
+                  : ""}
+              </p>
+            </div>
+            {showContact && p.contact && (
+              <div className="rounded border border-slate-200 bg-slate-50 p-3 text-sm">
+                <div className="text-xs font-medium text-slate-600">Parent / guardian</div>
+                <div className="mt-1 space-y-1">
+                  <div>{p.contact.guardianName || "—"}</div>
+                  <div>{p.contact.guardianPhone || "—"}</div>
+                  <div>{p.contact.guardianEmail || "—"}</div>
+                </div>
+              </div>
+            )}
+            {!showContact && (
+              <p className="text-sm text-slate-600">
+                Parent contact is hidden. Reach out to the player&apos;s listed coach for
+                outreach.
+              </p>
+            )}
+            {canEdit && (
         <form
           action={updatePlayerAction}
           className="max-w-2xl space-y-3 rounded border border-slate-200 bg-white p-4"
@@ -406,7 +426,10 @@ export default async function PlayerDetailPage({ params, searchParams }: Props) 
             </Link>
           </div>
         </form>
-      )}
+            )}
+          </>
+        }
+      />
       {session.role === "SUPER_ADMIN" && (
         <form action={deletePlayerAction} className="pt-1">
           <input name="id" type="hidden" value={p.id} />
