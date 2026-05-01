@@ -8,16 +8,17 @@ import {
 import { listPlayers, type PlayerListRow } from "@/lib/services/players.service";
 import type { SessionPayload } from "@/lib/auth/types";
 import { getServerEnv } from "@/lib/env";
+import { ageGroupsBetween } from "@/lib/data/age-group-range";
 
 export type TeamDashboardFilter = {
   seasonLabel?: string;
   leagueId?: string;
   locationId?: string;
   gender?: Gender;
-  ageGroup?: string;
+  ageGroupMin?: string;
+  ageGroupMax?: string;
   coachId?: string;
   teamId?: string;
-  openSession?: "any" | "open" | "closed";
   sort?: "team" | "needed" | "assigned" | "committed";
 };
 
@@ -48,20 +49,21 @@ export async function listTeamDashboardRows(
   input: TeamDashboardFilter = {}
 ): Promise<TeamDashboardRow[]> {
   const seasonLabel = input.seasonLabel ?? getServerEnv().DEFAULT_SEASON_LABEL;
+  const cohortLabels = ageGroupsBetween(input.ageGroupMin, input.ageGroupMax);
+
   const rows = await prisma.team.findMany({
     where: {
       seasonLabel,
       ...(input.leagueId ? { leagueId: input.leagueId } : {}),
       ...(input.locationId ? { locationId: input.locationId } : {}),
       ...(input.gender ? { gender: input.gender } : {}),
-      ...(input.ageGroup ? { ageGroup: input.ageGroup } : {}),
+      ...(cohortLabels != null && cohortLabels.length === 0
+        ? { id: { in: [] } }
+        : cohortLabels != null && cohortLabels.length > 0
+          ? { ageGroup: { in: [...cohortLabels] } }
+          : {}),
       ...(input.coachId ? { coachId: input.coachId } : {}),
       ...(input.teamId ? { id: input.teamId } : {}),
-      ...(input.openSession === "open"
-        ? { openSession: true }
-        : input.openSession === "closed"
-          ? { openSession: false }
-          : {}),
     },
     include: {
       coach: true,
@@ -138,32 +140,39 @@ export async function listTeamDashboardRows(
   return dashboardRows;
 }
 
-export type UnassignedFilter = {
+export type DashboardPlayersFilter = {
   seasonLabel?: string;
   gender?: Gender;
-  ageGroup?: string;
+  ageGroupMin?: string;
+  ageGroupMax?: string;
   locationId?: string;
   evaluationLevel?: EvaluationLevel;
   leagueInterestId?: string;
   willingToPlayUp?: "any" | "yes" | "no";
   playerStatus?: PlayerStatus;
   primaryPosition?: PlayerPosition;
+  dobMin?: Date;
+  dobMax?: Date;
 };
 
-export async function listUnassignedDashboardPlayers(
+/** Assigned and unassigned players matching dashboard cohort filters (RBAC/contact rules unchanged). */
+export async function listDashboardMatchingPlayers(
   session: SessionPayload,
-  input: UnassignedFilter = {}
+  input: DashboardPlayersFilter = {}
 ): Promise<PlayerListRow[]> {
+  const cohortLabels = ageGroupsBetween(input.ageGroupMin, input.ageGroupMax);
   const base = await listPlayers(session, {
     seasonLabel: input.seasonLabel,
     gender: input.gender,
-    ageGroup: input.ageGroup,
+    effectiveAgeGroupLabelsIn: cohortLabels,
     locationId: input.locationId,
     evaluationLevel: input.evaluationLevel,
     leagueInterestId: input.leagueInterestId,
-    assignment: "available",
+    assignment: "any",
     playerStatus: input.playerStatus,
     primaryPosition: input.primaryPosition,
+    dobMin: input.dobMin,
+    dobMax: input.dobMax,
   });
   if (input.willingToPlayUp === "yes") {
     return base.filter((p) => p.willingToPlayUp);
