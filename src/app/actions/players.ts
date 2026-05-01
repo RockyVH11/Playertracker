@@ -221,6 +221,7 @@ export async function updatePlayerAction(formData: FormData) {
   await auditLog(session, "Player", p.id, "update", {});
   revalidatePath("/players");
   revalidatePath(`/players/${p.id}`);
+  revalidatePath(`/players/${p.id}/profile`);
   redirect("/players");
 }
 
@@ -238,5 +239,7 @@ export async function deletePlayerAction(formData: FormData) {
   }
   await auditLog(session, "Player", id, "delete", {});
   revalidatePath("/players");
+  revalidatePath(`/players/${id}`);
+  revalidatePath(`/players/${id}/profile`);
   redirect("/players");
 }
