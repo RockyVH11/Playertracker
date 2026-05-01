@@ -1,3 +1,4 @@
+import type { Prisma } from "@prisma/client";
 import {
   type EvaluationLevel,
   type Gender,
@@ -169,7 +170,10 @@ export async function listPlayers(
     seasonLabel?: string;
     q?: string;
     gender?: Gender;
+    /** Single cohort (legacy filter). Ignored when `effectiveAgeGroupLabelsIn` is set (non‑empty). */
     ageGroup?: string;
+    /** Standard labels (from age range picker); player matches if effective cohort is any of these. */
+    effectiveAgeGroupLabelsIn?: readonly string[];
     locationId?: string;
     leagueInterestId?: string;
     evaluationLevel?: EvaluationLevel;
@@ -177,6 +181,8 @@ export async function listPlayers(
     assignment?: "any" | "available" | "assigned";
     playerStatus?: PlayerStatus;
     primaryPosition?: PlayerPosition;
+    dobMin?: Date;
+    dobMax?: Date;
   } = {}
 ): Promise<PlayerListRow[]> {
   const { getServerEnv } = await import("@/lib/env");
@@ -187,19 +193,47 @@ export async function listPlayers(
       : input.assignment === "assigned"
         ? { assignedTeamId: { not: null } }
         : {};
-  const ageGroupWhere = input.ageGroup
-    ? {
-        OR: [
-          { overrideAgeGroup: input.ageGroup },
-          {
-            AND: [
-              { overrideAgeGroup: null },
-              { derivedAgeGroup: input.ageGroup },
-            ],
+  const labels = input.effectiveAgeGroupLabelsIn;
+  const emptyRange =
+    labels != null && labels.length === 0;
+  if (emptyRange) {
+    return [];
+  }
+
+  let ageGroupWhere: Prisma.PlayerWhereInput = {};
+
+  if (labels != null && labels.length > 0) {
+    ageGroupWhere = {
+      OR: labels.flatMap((label) => [
+        { overrideAgeGroup: label },
+        {
+          AND: [{ overrideAgeGroup: null }, { derivedAgeGroup: label }],
+        },
+      ]),
+    };
+  } else if (input.ageGroup) {
+    ageGroupWhere = {
+      OR: [
+        { overrideAgeGroup: input.ageGroup },
+        {
+          AND: [
+            { overrideAgeGroup: null },
+            { derivedAgeGroup: input.ageGroup },
+          ],
+        },
+      ],
+    };
+  }
+
+  const dobWhere: Prisma.PlayerWhereInput =
+    input.dobMin != null || input.dobMax != null
+      ? {
+          dob: {
+            ...(input.dobMin != null ? { gte: input.dobMin } : {}),
+            ...(input.dobMax != null ? { lte: input.dobMax } : {}),
           },
-        ],
-      }
-    : {};
+        }
+      : {};
   const q = input.q?.trim();
   const rows = await prisma.player.findMany({
     where: {
@@ -214,6 +248,7 @@ export async function listPlayers(
         : {}),
       ...(input.gender ? { gender: input.gender } : {}),
       ...ageGroupWhere,
+      ...dobWhere,
       ...(input.locationId ? { locationId: input.locationId } : {}),
       ...(input.leagueInterestId
         ? { leagueInterestId: input.leagueInterestId }
