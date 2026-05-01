@@ -5,6 +5,7 @@ import { getSession } from "@/lib/auth/session";
 import { getServerEnv } from "@/lib/env";
 import { listPlayers } from "@/lib/services/players.service";
 import { formatEval } from "@/lib/ui/formatters";
+import { toUsDateUtc } from "@/lib/ui/date";
 import { getLeagues, getLocations, getTeamsForSelect } from "@/lib/data/reference";
 import { EvaluationLevel, PlayerPosition, PlayerStatus } from "@prisma/client";
 import { AgeGroupSelect } from "@/components/form/age-group-select";
@@ -196,7 +197,8 @@ export default async function PlayersPage({ searchParams }: Props) {
           <thead className="border-b border-slate-200 bg-slate-50 text-xs font-medium text-slate-600">
             <tr>
               <th className="px-3 py-2">Name</th>
-              <th className="px-3 py-2">Age</th>
+              <th className="px-3 py-2">Age group</th>
+              <th className="px-3 py-2">DOB</th>
               <th className="px-3 py-2">Eval</th>
               <th className="px-3 py-2">Status</th>
               <th className="px-3 py-2">Team</th>
@@ -205,7 +207,7 @@ export default async function PlayersPage({ searchParams }: Props) {
           <tbody>
             {players.length === 0 && (
               <tr>
-                <td className="px-3 py-6 text-slate-600" colSpan={5}>
+                <td className="px-3 py-6 text-slate-600" colSpan={6}>
                   No players yet.
                 </td>
               </tr>
@@ -221,6 +223,7 @@ export default async function PlayersPage({ searchParams }: Props) {
                   {p.overrideAgeGroup ?? p.derivedAgeGroup}
                   {p.willingToPlayUp ? " · play-up" : ""}
                 </td>
+                <td className="px-3 py-2 whitespace-nowrap">{toUsDateUtc(p.dob)}</td>
                 <td className="px-3 py-2">{formatEval(p.evaluationLevel)}</td>
                 <td className="px-3 py-2">
                   {p.playerStatus}
