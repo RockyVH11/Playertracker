@@ -34,6 +34,20 @@ export async function getAssignedPlayerCount(teamId: string): Promise<number> {
   return await prisma.player.count({ where: { assignedTeamId: teamId } });
 }
 
+/** Distinct `seasonLabel` values plus env default—for season picker hints on `/teams`. */
+export async function listTeamSeasonHints(): Promise<string[]> {
+  const { getServerEnv } = await import("@/lib/env");
+  const envSeason = getServerEnv().DEFAULT_SEASON_LABEL;
+  const grouped = await prisma.team.groupBy({
+    by: ["seasonLabel"],
+    _count: { _all: true },
+  });
+  const fromDb = grouped.map((g) => g.seasonLabel);
+  const merged = [...new Set([envSeason, ...fromDb])];
+  merged.sort((a, b) => b.localeCompare(a, undefined, { numeric: true }));
+  return merged;
+}
+
 export async function listTeams(
   input: {
     seasonLabel?: string;
