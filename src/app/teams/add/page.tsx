@@ -8,10 +8,9 @@ import { getLeagues, getLocations } from "@/lib/data/reference";
 import { createTeamAction } from "@/app/actions/teams";
 import { AgeGroupSelect } from "@/components/form/age-group-select";
 import { prisma } from "@/lib/prisma";
+import { coerceRosterSeasonQueryParam } from "@/lib/teams/roster-season-filter";
 
 export const dynamic = "force-dynamic";
-
-const SEASON_LABEL_RE = /^\d{4}-\d{4}$/;
 
 type Props = {
   searchParams: Promise<Record<string, string | string[] | undefined>>;
@@ -41,8 +40,10 @@ export default async function CoachAddTeamPage({ searchParams }: Props) {
 
   const sp = await searchParams;
   const rawSeason = oneParam(sp.seasonLabel)?.trim();
-  const seasonForForm =
-    rawSeason && SEASON_LABEL_RE.test(rawSeason) ? rawSeason : defaultSeason;
+  const seasonForForm = coerceRosterSeasonQueryParam(
+    rawSeason?.length ? rawSeason : undefined,
+    defaultSeason
+  );
   const rawErr = typeof sp.error === "string" ? sp.error : null;
   const error = rawErr ? decodeURIComponent(rawErr) : null;
 

@@ -7,6 +7,7 @@ import { getServerEnv } from "@/lib/env";
 import { listTeams, listTeamSeasonHints } from "@/lib/services/teams.service";
 import { redirect } from "next/navigation";
 import { getLeagues, getLocations } from "@/lib/data/reference";
+import { coerceRosterSeasonQueryParam } from "@/lib/teams/roster-season-filter";
 import { teamFilterSchema } from "@/lib/validation/teams";
 import { PostCreateTeamPrompt } from "@/components/teams/post-create-team-prompt";
 import { DashboardFilterForm } from "@/components/dashboard/dashboard-filter-form";
@@ -23,8 +24,16 @@ export default async function TeamsPage({ searchParams }: Props) {
   if (!session) redirect("/login");
   const defaultSeason = getServerEnv().DEFAULT_SEASON_LABEL;
   const sp = await searchParams;
+  const rawSeasonParam = asString(sp.seasonLabel)?.trim();
+  const rosterSeasonClean = coerceRosterSeasonQueryParam(
+    rawSeasonParam?.length ? rawSeasonParam : undefined,
+    defaultSeason
+  );
+  if (rawSeasonParam && rawSeasonParam !== rosterSeasonClean) {
+    redirect(buildTeamsFiltersUrl(sp, rosterSeasonClean));
+  }
   const parsed = teamFilterSchema.safeParse({
-    seasonLabel: blankToUndefined(asString(sp.seasonLabel)) ?? defaultSeason,
+    seasonLabel: rosterSeasonClean,
     locationId: blankToUndefined(asString(sp.locationId)),
     gender: blankToUndefined(asString(sp.gender)),
     leagueId: blankToUndefined(asString(sp.leagueId)),
@@ -44,6 +53,10 @@ export default async function TeamsPage({ searchParams }: Props) {
     getLeagues(),
     listTeamSeasonHints(),
   ]);
+  const seasonSelectOptions = Array.from(
+    new Set([defaultSeason, ...seasonHints, viewingSeason])
+  ).sort((a, b) => b.localeCompare(a, undefined, { numeric: true }));
+
   return (
     <div className="space-y-6">
       <Suspense fallback={null}>
@@ -96,20 +109,18 @@ export default async function TeamsPage({ searchParams }: Props) {
       <DashboardFilterForm className="grid grid-cols-1 gap-2 rounded border border-slate-200 bg-white p-3 sm:grid-cols-6">
         <label className="block space-y-1 text-xs text-slate-600 sm:col-span-2">
           <span className="font-medium uppercase tracking-wide text-slate-500">Roster season</span>
-          <input
-            className="w-full rounded border border-slate-300 px-2 py-2 text-sm font-mono"
+          <select
             name="seasonLabel"
-            title="YYYY-YYYY (click Apply after editing)"
+            className="w-full rounded border border-slate-300 px-2 py-2 text-sm font-mono"
             defaultValue={viewingSeason}
-            list="teams-season-hints"
-            placeholder={defaultSeason}
-            pattern="\d{4}-\d{4}"
-          />
-          <datalist id="teams-season-hints">
-            {seasonHints.map((s) => (
-              <option key={s} value={s} />
+            title="Switches roster year immediately (same as other dropdown filters)"
+          >
+            {seasonSelectOptions.map((s) => (
+              <option key={s} value={s}>
+                {s}
+              </option>
             ))}
-          </datalist>
+          </select>
         </label>
         <input
           className="rounded border border-slate-300 px-2 py-2 text-sm sm:col-span-2"
@@ -161,9 +172,9 @@ export default async function TeamsPage({ searchParams }: Props) {
         </select>
         <div className="flex flex-col gap-2 sm:col-span-6 sm:flex-row sm:items-center sm:justify-between">
           <p className="text-xs text-slate-500">
-            Dropdown filters apply immediately. Click <strong>Apply</strong> after editing roster season or
-            name search. Use <strong>No league / internal only</strong> when a squad has no pathway row in
-            the database.
+            Roster season and other dropdowns apply immediately when changed. Click <strong>Apply</strong>
+            after editing the name search. Use <strong>No league / internal only</strong> for squads
+            without a pathway row.
           </p>
           <div className="flex items-center gap-2">
             <Link href="/teams" className="rounded border border-slate-300 px-4 py-2 text-sm">
@@ -254,4 +265,31 @@ function asString(v: string | string[] | undefined): string | undefined {
 function blankToUndefined(v: string | undefined): string | undefined {
   if (!v || v.trim().length === 0) return undefined;
   return v;
+}
+
+const TEAMS_SEARCH_KEYS = [
+  "locationId",
+  "gender",
+  "leagueId",
+  "openSession",
+  "q",
+  "promptAddAnother",
+  "newTeam",
+] as const;
+
+/** Rebuild `/teams` query with a canonical roster season when the incoming param was malformed. */
+function buildTeamsFiltersUrl(
+  sp: Record<string, string | string[] | undefined>,
+  seasonLabel: string
+): string {
+  const u = new URLSearchParams();
+  u.set("seasonLabel", seasonLabel);
+  for (const k of TEAMS_SEARCH_KEYS) {
+    const v = blankToUndefined(asString(sp[k]));
+    if (v !== undefined) {
+      u.set(k, v);
+    }
+  }
+  const qs = u.toString();
+  return qs ? `/teams?${qs}` : "/teams";
 }
