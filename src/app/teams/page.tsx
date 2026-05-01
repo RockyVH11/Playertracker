@@ -10,6 +10,8 @@ import { teamFilterSchema } from "@/lib/validation/teams";
 import { PostCreateTeamPrompt } from "@/components/teams/post-create-team-prompt";
 import { DashboardFilterForm } from "@/components/dashboard/dashboard-filter-form";
 
+export const dynamic = "force-dynamic";
+
 type Props = {
   searchParams: Promise<Record<string, string | string[] | undefined>>;
 };
@@ -41,7 +43,13 @@ export default async function TeamsPage({ searchParams }: Props) {
   return (
     <div className="space-y-6">
       <Suspense fallback={null}>
-        <PostCreateTeamPrompt />
+        <PostCreateTeamPrompt
+          createAnotherHref={
+            session.role === "SUPER_ADMIN"
+              ? "/teams/new"
+              : `/teams/add?seasonLabel=${encodeURIComponent(filters.seasonLabel ?? defaultSeason)}`
+          }
+        />
       </Suspense>
       <div className="flex flex-wrap items-end justify-between gap-3">
         <div>
@@ -62,7 +70,7 @@ export default async function TeamsPage({ searchParams }: Props) {
           {isCoachSession(session) && (
             <Link
               className="rounded border border-slate-300 bg-white px-3 py-2 text-sm font-medium text-slate-900 shadow-sm hover:bg-slate-50"
-              href="/teams/add"
+              href={`/teams/add?seasonLabel=${encodeURIComponent(filters.seasonLabel ?? defaultSeason)}`}
             >
               Add your team
             </Link>
@@ -121,7 +129,10 @@ export default async function TeamsPage({ searchParams }: Props) {
         <input name="seasonLabel" type="hidden" value={filters.seasonLabel ?? defaultSeason} />
         <div className="flex flex-col gap-2 sm:col-span-6 sm:flex-row sm:items-center sm:justify-between">
           <p className="text-xs text-slate-500">
-            Dropdown filters apply immediately. After editing search text, click Apply.
+            Dropdown filters apply immediately. After editing search text, click Apply. Use{" "}
+            <strong>No league / internal only</strong> if you saved a squad without a pathway and it
+            does not appear under <strong>All leagues</strong> with another league dropdown choice
+            stuck on.
           </p>
           <div className="flex items-center gap-2">
             <Link

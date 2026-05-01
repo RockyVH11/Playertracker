@@ -438,9 +438,13 @@ export async function createTeamAction(formData: FormData) {
 
   }
 
-  const q = `promptAddAnother=1&newTeam=${encodeURIComponent(id)}`;
+  const listParams = new URLSearchParams({
+    seasonLabel: p.seasonLabel,
+    promptAddAnother: "1",
+    newTeam: id,
+  });
 
-  redirect(`/teams?${q}`);
+  redirect(`/teams?${listParams.toString()}`);
 
 }
 

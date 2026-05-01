@@ -59,7 +59,8 @@ export const teamFilterSchema = z
     seasonLabel: z.string().trim().regex(/^\d{4}-\d{4}$/).optional(),
     locationId: z.string().cuid().optional(),
     gender: z.nativeEnum(Gender).optional(),
-    leagueId: z.string().cuid().optional(),
+    /** `"_none"` = teams whose `leagueId` is null (internal / no-pathway squads). */
+    leagueId: z.union([z.literal("_none"), z.string().cuid()]).optional(),
     openSession: z.enum(["any", "open", "closed"]).optional(),
     q: z.string().trim().max(80).optional(),
   })

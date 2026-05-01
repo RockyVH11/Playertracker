@@ -32,6 +32,7 @@ Reminder: Coach/team dropdowns primarily scope the **team table**; the player gr
 3. Leave **No league in the name** if that squad does not pathway branding in the label (typical for some internal sides). With a pathway selected, the league’s words appear in the middle of the auto name between the age band (**U11B** / **U11G**) and your **last name** as listed on your coach profile.
 4. The app builds the display name—you cannot type a different label. Format matches **`CLUB_DISPLAY_NAME`** from server config (e.g. Kernow Storm FC): `{club} {UxB|UxG} [pathway tokens…] {YourLast}`.
 5. **`committed`** roster counts stay at zero until a super admin sets them. If your generated name matches an existing season team, stop and ask an admin—they can resolve duplicates or assign **-Black / -Red** parallel squads.
+6. On the **Teams** list, dropdown filters (league, gender, location, …) apply as soon as you change them. Squads **without a league** disappear if a **specific league** is selected; use **No league / internal only** or reset filters to see them.
 
 ## Players and teams
 

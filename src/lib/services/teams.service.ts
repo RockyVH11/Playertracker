@@ -51,7 +51,11 @@ export async function listTeams(
     seasonLabel: season,
     ...(input.locationId ? { locationId: input.locationId } : {}),
     ...(input.gender ? { gender: input.gender } : {}),
-    ...(input.leagueId ? { leagueId: input.leagueId } : {}),
+    ...(input.leagueId === "_none"
+      ? { leagueId: null }
+      : input.leagueId
+        ? { leagueId: input.leagueId }
+        : {}),
     ...(input.openSession === "open"
       ? { openSession: true }
       : input.openSession === "closed"
