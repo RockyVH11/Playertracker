@@ -51,6 +51,10 @@ Open [http://localhost:3000](http://localhost:3000) — you will be redirected t
 
 Day-to-day usage for coaches (login, dashboard filters, copy tables, permissions overview): [`docs/coach-quick-guide.md`](./docs/coach-quick-guide.md).
 
+## Super admin quick start
+
+Admin console, full team edit/delete, and reference data (`/admin`): [`docs/admin-quick-guide.md`](./docs/admin-quick-guide.md).
+
 ## Permission Matrix (MVP)
 
 - **Super Admin**
