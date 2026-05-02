@@ -1,4 +1,4 @@
-import type { Team } from "@prisma/client";
+import { StaffRole, type Prospect, type Team } from "@prisma/client";
 import type { SessionPayload } from "@/lib/auth/types";
 import { isCoachSession } from "@/lib/auth/types";
 import { prisma } from "@/lib/prisma";
@@ -65,4 +65,55 @@ export async function assertCoachActive(coachId: string) {
   if (!coach) {
     throw new Error("Invalid coach");
   }
+}
+
+export function canAccessProspectDashboard(
+  session: SessionPayload,
+  viewerStaffRole: StaffRole | null
+): boolean {
+  if (session.role === "SUPER_ADMIN") return true;
+  return viewerStaffRole === StaffRole.DIRECTOR;
+}
+
+export function canDeleteProspect(session: SessionPayload, viewerStaffRole: StaffRole | null) {
+  if (session.role === "SUPER_ADMIN") return true;
+  return viewerStaffRole === StaffRole.DIRECTOR;
+}
+
+export function canAssignOrReassignProspect(
+  session: SessionPayload,
+  viewerStaffRole: StaffRole | null
+): boolean {
+  if (session.role === "SUPER_ADMIN") return true;
+  return viewerStaffRole === StaffRole.DIRECTOR;
+}
+
+/** Phone/email and similar contact channels on a Prospect row. */
+export function canViewProspectSensitiveContact(
+  session: SessionPayload,
+  viewerStaffRole: StaffRole | null,
+  viewerCoachId: string | null,
+  row: Pick<Prospect, "assignedToCoachId" | "submittedByCoachId">
+): boolean {
+  if (session.role === "SUPER_ADMIN") return true;
+  if (viewerStaffRole === StaffRole.DIRECTOR) return true;
+  if (!isCoachSession(session) || !viewerCoachId) return false;
+  if (row.assignedToCoachId === viewerCoachId) return true;
+  if (row.submittedByCoachId === viewerCoachId) return true;
+  return false;
+}
+
+/** Assignee Coach/Manager: status + notes only; Directors/Super Admin may edit broadly. */
+export function canCoachUpdateProspectAssignmentsOnly(
+  session: SessionPayload,
+  viewerStaffRole: StaffRole | null,
+  viewerCoachId: string | null,
+  prospect: Pick<Prospect, "assignedToCoachId">
+): boolean {
+  if (!isCoachSession(session) || viewerCoachId == null) return false;
+  return (
+    (viewerStaffRole === StaffRole.COACH ||
+      viewerStaffRole === StaffRole.MANAGER) &&
+    prospect.assignedToCoachId === viewerCoachId
+  );
 }

@@ -25,8 +25,8 @@ export default async function AdminLayout({
         <Link className="text-slate-800 underline-offset-4 hover:underline" href="/admin/age-chart">
           Age chart
         </Link>
-        <Link className="text-slate-800 underline-offset-4 hover:underline" href="/admin/coaches">
-          Coaches / users
+        <Link className="text-slate-800 underline-offset-4 hover:underline" href="/staff">
+          Staff directory
         </Link>
         <Link className="text-slate-800 underline-offset-4 hover:underline" href="/admin/teams/new">
           Add team

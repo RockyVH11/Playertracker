@@ -15,6 +15,8 @@ import {
   ORDERED_LEAGUES,
 } from "../src/lib/data/leagues-seed";
 import { buildStandardAgeGroupRuleRows } from "../src/lib/age-chart-standard";
+import { inferStaffRoleFromLabel } from "../src/lib/staff/infer-staff-role-from-label";
+import { displayStaffRole } from "../src/lib/staff/staff-role-label";
 
 const prisma = new PrismaClient();
 
@@ -99,6 +101,9 @@ async function main() {
         );
       const status = normalizeNullable(csvPick(row, "status", "Status") ?? row["Status"]);
       const isActive = staffCsvStatusIsActive(status);
+      const staffRole = inferStaffRoleFromLabel(staffRoleLabel);
+      const roleLabelForPicker =
+        (staffRoleLabel && staffRoleLabel.trim()) || displayStaffRole(staffRole);
 
       let primaryLocationId: string | null = null;
       if (area) {
@@ -121,7 +126,8 @@ async function main() {
             firstName: first || "Unknown",
             lastName: last || "Unknown",
             phone,
-            staffRoleLabel,
+            staffRole,
+            staffRoleLabel: roleLabelForPicker,
             primaryAreaLabel: area,
             primaryLocationId,
             isActive,
@@ -131,7 +137,8 @@ async function main() {
             lastName: last || "Unknown",
             email,
             phone,
-            staffRoleLabel,
+            staffRole,
+            staffRoleLabel: roleLabelForPicker,
             primaryAreaLabel: area,
             primaryLocationId,
             isActive,
@@ -146,7 +153,8 @@ async function main() {
             where: { id: existing.id },
             data: {
               phone,
-              staffRoleLabel,
+              staffRole,
+              staffRoleLabel: roleLabelForPicker,
               primaryAreaLabel: area,
               primaryLocationId,
               isActive,
@@ -159,7 +167,8 @@ async function main() {
               lastName: last || "Unknown",
               email: null,
               phone,
-              staffRoleLabel,
+              staffRole,
+              staffRoleLabel: roleLabelForPicker,
               primaryAreaLabel: area,
               primaryLocationId,
               isActive,

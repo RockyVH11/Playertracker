@@ -23,6 +23,8 @@ import {
 import type { DashboardQueryValues } from "@/lib/dashboard/dashboard-query-params";
 import { DashboardPlayerSortTh } from "@/components/dashboard/dashboard-player-sort-th";
 import { DashboardTableCopySection } from "@/components/dashboard/dashboard-table-copy-section";
+import { isCoachSession } from "@/lib/auth/types";
+import { AssignedProspectsCard } from "@/components/prospects/assigned-prospects-card";
 
 const schema = z
   .object({
@@ -143,6 +145,7 @@ export default async function DashboardPage({ searchParams }: Props) {
   const sortedPlayers = sortDashboardPlayerRows(matchingPlayers, sortKey, sortDir);
   const dashboardQuerySnap = dashboardFiltersToSnapshot(filters, defaultSeason);
   const seasonForCopy = filters.seasonLabel ?? defaultSeason;
+  const prospectAddedNote = blankToUndefined(one(sp.prospectAdded)) === "1";
 
   return (
     <div className="space-y-6">
@@ -153,7 +156,14 @@ export default async function DashboardPage({ searchParams }: Props) {
           and DOB spans to widen or narrow rows. Click player grid column headers to sort (↑ first click
           ascending, second click toggles descending).
         </p>
+        {prospectAddedNote ? (
+          <p className="mt-2 rounded border border-emerald-200 bg-emerald-50 px-3 py-2 text-sm text-emerald-950">
+            Prospect captured while signed in under your staff identity — thanks for feeding the funnel.
+          </p>
+        ) : null}
       </div>
+
+      {isCoachSession(session) ? <AssignedProspectsCard coachId={session.coachId} /> : null}
       <DashboardFilterForm className="grid grid-cols-1 gap-2 rounded border border-slate-200 bg-white p-3 sm:grid-cols-12">
         <input type="hidden" name="pSort" value={sortKey} />
         <input type="hidden" name="pDir" value={sortDir} />

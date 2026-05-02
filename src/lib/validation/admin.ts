@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { Gender } from "@prisma/client";
+import { Gender, StaffRole } from "@prisma/client";
 
 export const locationCreateSchema = z.object({
   name: z.string().trim().min(1).max(200),
@@ -58,15 +58,41 @@ export const coachCreateSchema = z
     firstName: z.string().trim().min(1).max(120),
     lastName: z.string().trim().min(1).max(120),
     email: z.string().trim().max(320),
-    staffRoleLabel: z.string().trim().max(200),
-    primaryAreaLabel: z.string().trim().min(1).max(200),
+    phone: z.string().trim().max(80),
+    staffRole: z.nativeEnum(StaffRole),
+    primaryLocationId: z.string().cuid(),
   })
   .transform((d) => ({
     firstName: d.firstName,
     lastName: d.lastName,
     email: d.email.length > 0 ? d.email : undefined,
-    staffRoleLabel: d.staffRoleLabel.length > 0 ? d.staffRoleLabel : undefined,
-    primaryAreaLabel: d.primaryAreaLabel,
+    phone: d.phone.length > 0 ? d.phone : undefined,
+    staffRole: d.staffRole,
+    primaryLocationId: d.primaryLocationId,
+  }))
+  .superRefine((data, ctx) => {
+    if (data.email) {
+      const r = z.string().email().safeParse(data.email);
+      if (!r.success) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          message: "Invalid email address",
+          path: ["email"],
+        });
+      }
+    }
+  });
+
+export const coachSelfContactSchema = z
+  .object({
+    coachId: z.string().cuid(),
+    email: z.string().trim().max(320),
+    phone: z.string().trim().max(80),
+  })
+  .transform((d) => ({
+    coachId: d.coachId,
+    email: d.email.length > 0 ? d.email : undefined,
+    phone: d.phone.length > 0 ? d.phone : undefined,
   }))
   .superRefine((data, ctx) => {
     if (data.email) {
@@ -87,8 +113,9 @@ export const coachUpdateSchema = z
     firstName: z.string().trim().min(1).max(120),
     lastName: z.string().trim().min(1).max(120),
     email: z.string().trim().max(320),
-    staffRoleLabel: z.string().trim().max(200),
-    primaryAreaLabel: z.string().trim().min(1).max(200),
+    phone: z.string().trim().max(80),
+    staffRole: z.nativeEnum(StaffRole),
+    primaryLocationId: z.string().cuid(),
     isActive: z.enum(["true", "false"]).transform((v) => v === "true"),
   })
   .transform((d) => ({
@@ -96,8 +123,9 @@ export const coachUpdateSchema = z
     firstName: d.firstName,
     lastName: d.lastName,
     email: d.email.length > 0 ? d.email : undefined,
-    staffRoleLabel: d.staffRoleLabel.length > 0 ? d.staffRoleLabel : undefined,
-    primaryAreaLabel: d.primaryAreaLabel,
+    phone: d.phone.length > 0 ? d.phone : undefined,
+    staffRole: d.staffRole,
+    primaryLocationId: d.primaryLocationId,
     isActive: d.isActive,
   }))
   .superRefine((data, ctx) => {

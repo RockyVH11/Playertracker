@@ -60,6 +60,28 @@ enum PlacementPriority {
   WATCH_LIST
 }
 
+/// App-level staff role for permissions (distinct from CSV display `staffRoleLabel`).
+enum StaffRole {
+  DIRECTOR
+  COACH
+  MANAGER
+}
+
+enum ProspectType {
+  PLAYER
+  TEAM
+  COACH
+}
+
+enum ProspectStatus {
+  NEW
+  ASSIGNED
+  CONTACTED
+  IN_PROGRESS
+  CONVERTED
+  CLOSED
+}
+
 /// Future real accounts; optional fields for MVP
 model User {
   id          String   @id @default(cuid())
@@ -80,8 +102,9 @@ model Coach {
   lastName          String
   email             String?   @unique
   phone             String?
-  /// CSV / admin: Coach, Director, etc. — shown on login picker
+  /// CSV / picker display text; prefer `staffRole` for authorization.
   staffRoleLabel    String?
+  staffRole         StaffRole @default(COACH)
   primaryAreaLabel  String?
   primaryLocationId String?
   primaryLocation   Location? @relation("CoachPrimaryLocation", fields: [primaryLocationId], references: [id], onDelete: SetNull)
@@ -92,6 +115,9 @@ model Coach {
   teams                     Team[]
   createdPlayers            Player[] @relation("PlayerCreatedByCoach")
   evaluationAuthoredPlayers Player[] @relation("PlayerEvaluationAuthorCoach")
+
+  prospectsAssigned   Prospect[] @relation("ProspectAssignedToCoach")
+  prospectsSubmitted  Prospect[] @relation("ProspectSubmittedByCoach")
 }
 
 model Location {
@@ -102,7 +128,8 @@ model Location {
 
   teams          Team[]
   players        Player[]
-  primaryCoaches Coach[]  @relation("CoachPrimaryLocation")
+  primaryCoaches Coach[]    @relation("CoachPrimaryLocation")
+  prospects      Prospect[]
 }
 
 model League {
@@ -234,6 +261,37 @@ model PlayerContact {
   guardianEmail String?
   createdAt     DateTime @default(now())
   updatedAt     DateTime @updatedAt
+}
+
+model Prospect {
+  id        String       @id @default(cuid())
+  prospectType ProspectType
+  /// Full player/coach name, or team name for TEAM prospects.
+  prospectName           String
+  contactFirstName       String?
+  contactLastName        String?
+  contactPhone           String?
+  contactEmail           String?
+  locationId             String?
+  location               Location? @relation(fields: [locationId], references: [id], onDelete: SetNull)
+  locationUnknown        Boolean   @default(false)
+  assignedToCoachId      String?
+  assignedToCoach        Coach?    @relation("ProspectAssignedToCoach", fields: [assignedToCoachId], references: [id], onDelete: SetNull)
+  submittedByCoachId     String
+  submittedByCoach       Coach     @relation("ProspectSubmittedByCoach", fields: [submittedByCoachId], references: [id], onDelete: Restrict)
+  notes                  String?
+  status                 ProspectStatus @default(NEW)
+  createdAt              DateTime  @default(now())
+  updatedAt              DateTime  @updatedAt
+  assignedAt             DateTime?
+  convertedAt            DateTime?
+  closedAt               DateTime?
+
+  @@index([status, prospectType])
+  @@index([locationId])
+  @@index([assignedToCoachId])
+  @@index([submittedByCoachId])
+  @@index([createdAt])
 }
 
 model AuditLog {
