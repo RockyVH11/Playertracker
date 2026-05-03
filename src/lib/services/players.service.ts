@@ -12,7 +12,12 @@ import { deriveAgeGroupForDob } from "@/lib/age-group";
 import { normName } from "@/lib/strings";
 import type { SessionPayload } from "@/lib/auth/types";
 import { isCoachSession } from "@/lib/auth/types";
-import { canViewPlayerContact, canEditPlayer, canCreatePlayer } from "@/lib/rbac";
+import {
+  canViewPlayerContact,
+  canEditPlayer,
+  canCreatePlayer,
+  canDeletePlayer,
+} from "@/lib/rbac";
 
 const playerListSelect = {
   id: true,
@@ -187,8 +192,10 @@ export async function listPlayers(
 ): Promise<PlayerListRow[]> {
   const { getServerEnv } = await import("@/lib/env");
   const season = input.seasonLabel ?? getServerEnv().DEFAULT_SEASON_LABEL;
-  const assignmentWhere =
-    input.assignment === "available"
+  /** Pinning `assignedTeamId` must win over generic `assignment: assigned` ({ not: null }) or the team id is lost when both are provided. */
+  const assignmentWhere: Prisma.PlayerWhereInput = input.assignedTeamId
+    ? { assignedTeamId: input.assignedTeamId }
+    : input.assignment === "available"
       ? { assignedTeamId: null }
       : input.assignment === "assigned"
         ? { assignedTeamId: { not: null } }
@@ -256,7 +263,6 @@ export async function listPlayers(
       ...(input.evaluationLevel
         ? { evaluationLevel: input.evaluationLevel }
         : {}),
-      ...(input.assignedTeamId ? { assignedTeamId: input.assignedTeamId } : {}),
       ...assignmentWhere,
       ...(input.playerStatus ? { playerStatus: input.playerStatus } : {}),
       ...(input.primaryPosition
@@ -531,8 +537,25 @@ export async function deletePlayer(input: {
   session: SessionPayload;
   id: string;
 }): Promise<void> {
-  if (input.session.role !== "SUPER_ADMIN") {
-    throw new Error("Only super admin can delete a player in MVP");
+  const existing = await prisma.player.findUnique({
+    where: { id: input.id },
+    select: {
+      assignedTeamId: true,
+      createdByCoachId: true,
+      assignedTeam: {
+        select: { coachId: true },
+      },
+    },
+  });
+  if (!existing) {
+    throw new Error("Player not found");
+  }
+  const playerForAcl = {
+    createdByCoachId: existing.createdByCoachId,
+    assignedTeam: existing.assignedTeam ?? null,
+  };
+  if (!canDeletePlayer(input.session, playerForAcl)) {
+    throw new Error("Not allowed to delete this player");
   }
   await prisma.player.delete({ where: { id: input.id } });
 }

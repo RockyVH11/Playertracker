@@ -2,7 +2,7 @@ import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
 import { getSession } from "@/lib/auth/session";
 import { getPlayerById } from "@/lib/services/players.service";
-import { canEditPlayer } from "@/lib/rbac";
+import { canDeletePlayer, canEditPlayer } from "@/lib/rbac";
 import { getLeagues, getLocations, getTeamsForSelect } from "@/lib/data/reference";
 import { updatePlayerAction, deletePlayerAction } from "@/app/actions/players";
 import { toYmdUtc } from "@/lib/ui/date";
@@ -31,12 +31,12 @@ export default async function PlayerProfilePage({ params }: Props) {
   const p = await getPlayerById(session, id);
   if (!p) notFound();
 
-  const canEdit = canEditPlayer(session, {
+  const playerAcl = {
     createdByCoachId: p.createdByCoach?.id ?? null,
-    assignedTeam: p.assignedTeam
-      ? { coachId: p.assignedTeam.coachId }
-      : null,
-  });
+    assignedTeam: p.assignedTeam ? { coachId: p.assignedTeam.coachId } : null,
+  };
+  const canEdit = canEditPlayer(session, playerAcl);
+  const showDelete = canDeletePlayer(session, playerAcl);
   const showContact = p.contact != null;
 
   const [locations, leagues, teams] = await Promise.all([
@@ -390,16 +390,21 @@ export default async function PlayerProfilePage({ params }: Props) {
         </form>
       )}
 
-      {session.role === "SUPER_ADMIN" && (
-        <form action={deletePlayerAction} className="pt-1">
-          <input name="id" type="hidden" value={p.id} />
-          <button
-            className="rounded border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-800"
-            type="submit"
-          >
-            Delete player
-          </button>
-        </form>
+      {showDelete && (
+        <div className="space-y-1 pt-3">
+          <form action={deletePlayerAction}>
+            <input name="id" type="hidden" value={p.id} />
+            <button
+              className="rounded border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-800"
+              type="submit"
+            >
+              Delete player profile
+            </button>
+          </form>
+          <p className="text-xs text-slate-500">
+            Available when you created the record or coach the roster they are assigned to (plus super admins).
+          </p>
+        </div>
       )}
     </div>
   );

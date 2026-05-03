@@ -239,6 +239,7 @@ export async function deletePlayerAction(formData: FormData) {
   }
   await auditLog(session, "Player", id, "delete", {});
   revalidatePath("/players");
+  revalidatePath("/dashboard");
   revalidatePath(`/players/${id}`);
   revalidatePath(`/players/${id}/profile`);
   redirect("/players");

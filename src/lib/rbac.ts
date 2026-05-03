@@ -30,6 +30,17 @@ export function canEditPlayer(
   return false;
 }
 
+/** Same gate as editing: creator coach, assigned team's coach, or super admin — keeps seed/demo removable without extra roles. */
+export function canDeletePlayer(session: SessionPayload, row: PlayerForEdit): boolean {
+  return canEditPlayer(session, row);
+}
+
+export function canDeleteTeamOwnedByCoach(session: SessionPayload, teamCoachId: string): boolean {
+  if (session.role === "SUPER_ADMIN") return true;
+  if (!isCoachSession(session)) return false;
+  return teamCoachId === session.coachId;
+}
+
 export function canCreatePlayer(session: SessionPayload): boolean {
   return (
     session.role === "SUPER_ADMIN" || isCoachSession(session)

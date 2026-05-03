@@ -1,7 +1,7 @@
 import {
   nextPlayerGridSort,
+  normalizeDashboardPlayerSortKey,
   type PlayerGridSortKey,
-  isPlayerGridSortKey,
 } from "@/lib/dashboard/player-grid-sort";
 
 /** Serializable dashboard filter snapshot (matches GET form/query). */
@@ -61,7 +61,7 @@ export function dashboardPlayerSortHref(
   base: DashboardQueryValues,
   clicked: PlayerGridSortKey
 ): string {
-  const curCol = isPlayerGridSortKey(base.pSort) ? base.pSort : undefined;
+  const curCol = normalizeDashboardPlayerSortKey(base.pSort);
   const curDir = base.pDir === "asc" || base.pDir === "desc" ? base.pDir : undefined;
   const { col, dir } = nextPlayerGridSort(curCol, curDir, clicked);
   return dashboardHref({

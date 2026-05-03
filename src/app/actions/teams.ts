@@ -898,6 +898,8 @@ export async function deleteTeamAction(formData: FormData) {
   await auditLog(session, "Team", id, "delete", {});
 
   revalidatePath("/teams");
+  revalidatePath("/dashboard");
+  revalidatePath("/players");
 
   redirect("/teams");
 

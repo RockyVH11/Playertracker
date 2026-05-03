@@ -146,6 +146,8 @@ export type DashboardPlayersFilter = {
   ageGroupMin?: string;
   ageGroupMax?: string;
   locationId?: string;
+  /** When set, the player grid only shows athletes rostered on this team for the selected season. */
+  teamId?: string;
   evaluationLevel?: EvaluationLevel;
   leagueInterestId?: string;
   willingToPlayUp?: "any" | "yes" | "no";
@@ -166,6 +168,7 @@ export async function listDashboardMatchingPlayers(
     gender: input.gender,
     effectiveAgeGroupLabelsIn: cohortLabels,
     locationId: input.locationId,
+    ...(input.teamId ? { assignedTeamId: input.teamId } : {}),
     evaluationLevel: input.evaluationLevel,
     leagueInterestId: input.leagueInterestId,
     assignment: "any",

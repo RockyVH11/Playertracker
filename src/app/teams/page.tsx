@@ -11,6 +11,7 @@ import { coerceRosterSeasonQueryParam } from "@/lib/teams/roster-season-filter";
 import { teamFilterSchema } from "@/lib/validation/teams";
 import { PostCreateTeamPrompt } from "@/components/teams/post-create-team-prompt";
 import { DashboardFilterForm } from "@/components/dashboard/dashboard-filter-form";
+import { dashboardHref } from "@/lib/dashboard/dashboard-query-params";
 
 export const dynamic = "force-dynamic";
 
@@ -223,9 +224,20 @@ export default async function TeamsPage({ searchParams }: Props) {
             {teams.map((t) => (
               <tr className="border-t border-slate-100" key={t.id}>
                 <td className="px-3 py-2">
-                  <Link className="font-medium" href={`/teams/${t.id}`}>
-                    {t.teamName}
-                  </Link>
+                  <div className="flex flex-col gap-0.5">
+                    <Link className="font-medium" href={`/teams/${t.id}`}>
+                      {t.teamName}
+                    </Link>
+                    <Link
+                      href={dashboardHref({
+                        seasonLabel: viewingSeason,
+                        teamId: t.id,
+                      })}
+                      className="text-xs font-normal text-slate-600 underline-offset-2 hover:underline"
+                    >
+                      Dashboard roster view
+                    </Link>
+                  </div>
                 </td>
                 <td className="px-3 py-2">
                   {t.coach.lastName}, {t.coach.firstName}

@@ -1,6 +1,7 @@
 import { prisma } from "@/lib/prisma";
 import type { SessionPayload } from "@/lib/auth/types";
 import {
+  canDeleteTeamOwnedByCoach,
   canSetCommittedCount,
   canSetCoachEstimate,
 } from "@/lib/rbac";
@@ -339,6 +340,27 @@ export async function updateTeam(input: {
 }
 
 export async function deleteTeam(input: { session: SessionPayload; id: string }) {
-  assertSuperAdmin(input.session);
-  await prisma.team.delete({ where: { id: input.id } });
+  const id = input.id;
+  const team = await prisma.team.findUnique({
+    where: { id },
+    select: { coachId: true },
+  });
+  if (!team) {
+    throw new Error("Team not found");
+  }
+  if (!canDeleteTeamOwnedByCoach(input.session, team.coachId)) {
+    throw new Error("Only the listed coach or a super admin can delete this team");
+  }
+  /**
+   * Rows return to pool: `Player.assignedTeam` uses `onDelete: SetNull` in Prisma schema.
+   * We explicitly null assignments first inside a transaction so behavior stays obvious even if the FK ever changes,
+   * and so one atomic unit rolls back together on failure.
+   */
+  await prisma.$transaction(async (tx) => {
+    await tx.player.updateMany({
+      where: { assignedTeamId: id },
+      data: { assignedTeamId: null },
+    });
+    await tx.team.delete({ where: { id } });
+  });
 }

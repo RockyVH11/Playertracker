@@ -1,4 +1,3 @@
-import type { EvaluationLevel } from "@prisma/client";
 import type { PlayerListRow } from "@/lib/services/players.service";
 import { ageGroupRank } from "@/lib/data/age-group-range";
 
@@ -7,10 +6,8 @@ export const PLAYER_GRID_SORT_KEYS = [
   "age",
   "dob",
   "location",
-  "eval",
   "status",
   "position",
-  "playUp",
   "team",
 ] as const;
 
@@ -20,13 +17,17 @@ export function isPlayerGridSortKey(s: string | undefined): s is PlayerGridSortK
   return s != null && (PLAYER_GRID_SORT_KEYS as readonly string[]).includes(s);
 }
 
-const evalRank: Record<EvaluationLevel, number> = {
-  RL: 0,
-  N1: 1,
-  N2: 2,
-  GRASSROOTS: 3,
-  NOT_EVALUATED: 4,
+/** Backward compat if bookmark stored old columns (eval / playUp). */
+const LEGACY_SORT_MAP: Record<string, PlayerGridSortKey> = {
+  eval: "status",
+  playUp: "player",
 };
+
+export function normalizeDashboardPlayerSortKey(s: string | undefined): PlayerGridSortKey | undefined {
+  if (s == null || s.trim() === "") return undefined;
+  if (isPlayerGridSortKey(s)) return s;
+  return LEGACY_SORT_MAP[s] ?? undefined;
+}
 
 function effectiveAgeGroup(p: PlayerListRow): string {
   return p.overrideAgeGroup ?? p.derivedAgeGroup;
@@ -58,8 +59,6 @@ export function compareDashboardPlayerRows(
       return a.dob.getTime() - b.dob.getTime();
     case "location":
       return a.location.name.localeCompare(b.location.name, undefined, { sensitivity: "base" });
-    case "eval":
-      return evalRank[a.evaluationLevel] - evalRank[b.evaluationLevel];
     case "status":
       return a.playerStatus.localeCompare(b.playerStatus);
     case "position": {
@@ -67,8 +66,6 @@ export function compareDashboardPlayerRows(
       const pb = `${b.primaryPosition}${b.secondaryPosition ?? ""}`;
       return pa.localeCompare(pb);
     }
-    case "playUp":
-      return Number(a.willingToPlayUp) - Number(b.willingToPlayUp);
     case "team": {
       const sa = a.assignedTeam
         ? `${a.assignedTeam.coach.lastName} ${a.assignedTeam.teamName}`
