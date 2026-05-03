@@ -19,6 +19,7 @@ export async function getCoaches() {
       firstName: true,
       lastName: true,
       email: true,
+      staffRole: true,
       staffRoleLabel: true,
       primaryAreaLabel: true,
       primaryLocation: { select: { name: true } },

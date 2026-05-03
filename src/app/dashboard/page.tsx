@@ -17,12 +17,14 @@ import { DashboardFilterForm } from "@/components/dashboard/dashboard-filter-for
 import { parseDashYmdToUtcDate, toUsDateUtc } from "@/lib/ui/date";
 import {
   sortDashboardPlayerRows,
-  isPlayerGridSortKey,
+  normalizeDashboardPlayerSortKey,
   type PlayerGridSortKey,
 } from "@/lib/dashboard/player-grid-sort";
 import type { DashboardQueryValues } from "@/lib/dashboard/dashboard-query-params";
 import { DashboardPlayerSortTh } from "@/components/dashboard/dashboard-player-sort-th";
 import { DashboardTableCopySection } from "@/components/dashboard/dashboard-table-copy-section";
+import { isCoachSession } from "@/lib/auth/types";
+import { AssignedProspectsCard } from "@/components/prospects/assigned-prospects-card";
 
 const schema = z
   .object({
@@ -126,6 +128,7 @@ export default async function DashboardPage({ searchParams }: Props) {
       ageGroupMin: blankToUndefined(filters.ageGroupMin),
       ageGroupMax: blankToUndefined(filters.ageGroupMax),
       locationId: blankToUndefined(filters.locationId),
+      teamId: blankToUndefined(filters.teamId),
       evaluationLevel: filters.playerEvaluation,
       leagueInterestId: blankToUndefined(filters.leagueId),
       playerStatus: filters.playerStatus,
@@ -136,13 +139,18 @@ export default async function DashboardPage({ searchParams }: Props) {
     }),
   ]);
 
-  const sortKey: PlayerGridSortKey = isPlayerGridSortKey(filters.pSort)
-    ? filters.pSort
-    : "player";
+  const sortKey: PlayerGridSortKey =
+    normalizeDashboardPlayerSortKey(filters.pSort) ?? "player";
   const sortDir: "asc" | "desc" = filters.pDir === "desc" ? "desc" : "asc";
   const sortedPlayers = sortDashboardPlayerRows(matchingPlayers, sortKey, sortDir);
   const dashboardQuerySnap = dashboardFiltersToSnapshot(filters, defaultSeason);
   const seasonForCopy = filters.seasonLabel ?? defaultSeason;
+  const playerGridTeamName =
+    blankToUndefined(filters.teamId) && teamRows.length === 1 ? teamRows[0].teamName : null;
+  const playerGridTitle = playerGridTeamName
+    ? `Players on ${playerGridTeamName}`
+    : "Players matching filters";
+  const prospectAddedNote = blankToUndefined(one(sp.prospectAdded)) === "1";
 
   return (
     <div className="space-y-6">
@@ -153,7 +161,14 @@ export default async function DashboardPage({ searchParams }: Props) {
           and DOB spans to widen or narrow rows. Click player grid column headers to sort (↑ first click
           ascending, second click toggles descending).
         </p>
+        {prospectAddedNote ? (
+          <p className="mt-2 rounded border border-emerald-200 bg-emerald-50 px-3 py-2 text-sm text-emerald-950">
+            Prospect captured while signed in under your staff identity — thanks for feeding the funnel.
+          </p>
+        ) : null}
       </div>
+
+      {isCoachSession(session) ? <AssignedProspectsCard coachId={session.coachId} /> : null}
       <DashboardFilterForm className="grid grid-cols-1 gap-2 rounded border border-slate-200 bg-white p-3 sm:grid-cols-12">
         <input type="hidden" name="pSort" value={sortKey} />
         <input type="hidden" name="pDir" value={sortDir} />
@@ -215,6 +230,7 @@ export default async function DashboardPage({ searchParams }: Props) {
           className="rounded border border-slate-300 px-2 py-2 text-sm sm:col-span-2"
           defaultValue={filters.teamId ?? ""}
           name="teamId"
+          title="Narrows BOTH the roster band table above and this player scouting grid to one squad."
         >
           <option value="">All teams</option>
           {teamsForSelect.map((t) => (
@@ -407,13 +423,14 @@ export default async function DashboardPage({ searchParams }: Props) {
       </DashboardTableCopySection>
 
       <DashboardTableCopySection
-        title="Players matching filters"
-        copyIntro={`Players matching filters · Season ${seasonForCopy} · Tab-separated (paste into Excel or email)`}
+        title={playerGridTitle}
+        copyIntro={`${playerGridTitle} · Season ${seasonForCopy} · Tab-separated (paste into Excel or email)`}
         copyButtonLabel="Copy table"
       >
         <p className="text-xs text-slate-600">
-          Includes rostered athletes and pool players. The team and coach filters apply to the roster table
-          only; pathway, location, gender, cohort, dates, eval, status, position, and play-up refine this grid.
+          Includes rostered athletes and pool players. Team and coach picks narrow both the team summary table (top)
+          and this player grid. When <strong>Team</strong> is set, each row belongs to that squad; other scouting
+          filters still apply on top (location, cohort, eval, status, positions, DOB span, etc.).
         </p>
         <div className="overflow-x-auto rounded border border-slate-200 bg-white">
           <table className="min-w-full text-left text-sm">
@@ -423,17 +440,15 @@ export default async function DashboardPage({ searchParams }: Props) {
                 <DashboardPlayerSortTh col="age" label="Age group" querySnapshot={dashboardQuerySnap} />
                 <DashboardPlayerSortTh col="dob" label="DOB" querySnapshot={dashboardQuerySnap} />
                 <DashboardPlayerSortTh col="location" label="Location" querySnapshot={dashboardQuerySnap} />
-                <DashboardPlayerSortTh col="eval" label="Eval" querySnapshot={dashboardQuerySnap} />
                 <DashboardPlayerSortTh col="status" label="Status" querySnapshot={dashboardQuerySnap} />
                 <DashboardPlayerSortTh col="position" label="Position" querySnapshot={dashboardQuerySnap} />
-                <DashboardPlayerSortTh col="playUp" label="Play up" querySnapshot={dashboardQuerySnap} />
                 <DashboardPlayerSortTh col="team" label="Coach / team" querySnapshot={dashboardQuerySnap} />
               </tr>
             </thead>
             <tbody>
               {sortedPlayers.length === 0 && (
                 <tr>
-                  <td className="px-2 py-6 text-slate-600" colSpan={9}>
+                  <td className="px-2 py-6 text-slate-600" colSpan={7}>
                     No players match the current cohort filters (or tighten age / DOB if the range ended up empty).
                   </td>
                 </tr>
@@ -447,11 +462,9 @@ export default async function DashboardPage({ searchParams }: Props) {
                   </td>
                   <td className="px-2 py-2">
                     {p.gender === "BOYS" ? "B" : "G"} {p.overrideAgeGroup ?? p.derivedAgeGroup}
-                    {p.willingToPlayUp ? " · play-up" : ""}
                   </td>
                   <td className="px-2 py-2 whitespace-nowrap">{toUsDateUtc(p.dob)}</td>
                   <td className="px-2 py-2">{p.location.name}</td>
-                  <td className="px-2 py-2">{formatEval(p.evaluationLevel)}</td>
                   <td className="px-2 py-2">
                     {p.playerStatus}
                     {p.assignedTeamId == null ? " · pool" : ""}
@@ -460,7 +473,6 @@ export default async function DashboardPage({ searchParams }: Props) {
                     {p.primaryPosition}
                     {p.secondaryPosition ? ` / ${p.secondaryPosition}` : ""}
                   </td>
-                  <td className="px-2 py-2">{p.willingToPlayUp ? "Yes · play-up" : "No"}</td>
                   <td className="px-2 py-2">
                     {p.assignedTeam
                       ? `${p.assignedTeam.coach.lastName} / ${p.assignedTeam.teamName}`
@@ -499,6 +511,7 @@ function dashboardFiltersToSnapshot(
   f: z.infer<typeof schema>,
   defaultSeason: string
 ): DashboardQueryValues {
+  const pSortNormalized = normalizeDashboardPlayerSortKey(blankToUndefined(f.pSort));
   return {
     seasonLabel: f.seasonLabel ?? defaultSeason,
     leagueId: f.leagueId,
@@ -515,7 +528,7 @@ function dashboardFiltersToSnapshot(
     playerStatus: f.playerStatus,
     playerPosition: f.playerPosition,
     willingToPlayUp: f.willingToPlayUp,
-    pSort: f.pSort,
+    pSort: pSortNormalized ?? blankToUndefined(f.pSort),
     pDir: f.pDir,
   };
 }

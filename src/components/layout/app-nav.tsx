@@ -1,4 +1,5 @@
 import Link from "next/link";
+import type { StaffRole } from "@prisma/client";
 import type { SessionPayload } from "@/lib/auth/types";
 import { logoutAction } from "@/app/actions/auth";
 import { isCoachSession } from "@/lib/auth/types";
@@ -22,15 +23,20 @@ export async function AppNav({ session }: { session: SessionPayload | null }) {
   }
 
   let label = roleLabel(session);
+  let staffRole: StaffRole | null | undefined;
   if (isCoachSession(session)) {
     const c = await prisma.coach.findFirst({
       where: { id: session.coachId },
-      select: { firstName: true, lastName: true },
+      select: { firstName: true, lastName: true, staffRole: true },
     });
+    staffRole = c?.staffRole;
     if (c) {
-      label = `Coach: ${c.firstName} ${c.lastName}`;
+      label = `Staff: ${c.firstName} ${c.lastName}`;
     }
   }
+
+  const showProspectDashboard =
+    session.role === "SUPER_ADMIN" || staffRole === "DIRECTOR";
   return (
     <header className="border-b border-slate-200 bg-white">
       <div className="mx-auto flex max-w-6xl flex-wrap items-center justify-between gap-3 px-4 py-3 sm:px-6">
@@ -53,6 +59,19 @@ export async function AppNav({ session }: { session: SessionPayload | null }) {
           <Link className="text-slate-800" href="/players">
             Players
           </Link>
+          <Link className="text-slate-800" href="/staff">
+            Staff
+          </Link>
+          {session.role !== "SUPER_ADMIN" ? (
+            <Link className="text-slate-800" href="/prospects/new">
+              Add prospect
+            </Link>
+          ) : null}
+          {showProspectDashboard ? (
+            <Link className="text-slate-800" href="/prospects">
+              Prospects board
+            </Link>
+          ) : null}
           {session.role === "SUPER_ADMIN" ? (
             <Link className="text-slate-800" href="/admin/locations">
               Admin

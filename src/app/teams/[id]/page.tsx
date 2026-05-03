@@ -7,9 +7,13 @@ import { formatCoachPickerLabel } from "@/lib/ui/formatters";
 import { updateTeamAction, deleteTeamAction } from "@/app/actions/teams";
 import { updateTeamCoachAction } from "@/app/actions/teams-coach";
 import { isCoachSession } from "@/lib/auth/types";
+import { canDeleteTeamOwnedByCoach } from "@/lib/rbac";
 import { Gender } from "@prisma/client";
 import { AgeGroupSelect } from "@/components/form/age-group-select";
 import { needFieldClass, needGkClass } from "@/lib/ui/need-count-style";
+import { listPlayers } from "@/lib/services/players.service";
+import { TeamRosterSection } from "@/components/teams/team-roster-section";
+import { dashboardHref } from "@/lib/dashboard/dashboard-query-params";
 
 type SearchProps = {
   params: Promise<{ id: string }>;
@@ -27,12 +31,28 @@ export default async function TeamDetailPage({ params, searchParams }: SearchPro
   const isAdmin = session.role === "SUPER_ADMIN";
   const isTeamCoach =
     isCoachSession(session) && team.coach.id === session.coachId;
+  const rosterPlayers = await listPlayers(session, {
+    seasonLabel: team.seasonLabel,
+    assignedTeamId: team.id,
+    assignment: "assigned",
+  });
+  const rosterDashboardHref = dashboardHref({
+    seasonLabel: team.seasonLabel,
+    teamId: team.id,
+  });
+  const teamHeaderLineForCopy = `${team.teamName} · ${team.seasonLabel} · ${team.gender === "BOYS" ? "Boys" : "Girls"} · ${team.ageGroup} · ${team.location.name} · Coach ${team.coach.lastName}, ${team.coach.firstName}`;
+  const showDeleteTeam = canDeleteTeamOwnedByCoach(session, team.coach.id);
   return (
     <div className="space-y-8">
       <div className="space-y-1">
         <h1 className="text-2xl font-semibold text-slate-900">{team.teamName}</h1>
         <p className="text-sm text-slate-600">
           {team.seasonLabel} · {team.gender === "BOYS" ? "Boys" : "Girls"} · {team.ageGroup} · {team.location.name}
+        </p>
+        <p className="text-sm">
+          <Link className="text-slate-800 underline underline-offset-2" href={rosterDashboardHref}>
+            Open this squad on the team-building dashboard
+          </Link>
         </p>
       </div>
       {error && (
@@ -102,6 +122,13 @@ export default async function TeamDetailPage({ params, searchParams }: SearchPro
           </div>
         )}
       </div>
+
+      <TeamRosterSection
+        players={rosterPlayers}
+        teamHeaderLine={teamHeaderLineForCopy}
+        copySeasonLabel={team.seasonLabel}
+      />
+
       {isAdmin && <AdminEditForm team={team} />}
       {isTeamCoach && !isAdmin && (
         <form
@@ -148,6 +175,26 @@ export default async function TeamDetailPage({ params, searchParams }: SearchPro
           coach estimates or recruiting notes.
         </p>
       )}
+
+      {showDeleteTeam && (
+        <div className="max-w-xl space-y-2 rounded border border-red-100 bg-red-50/40 p-4 text-sm">
+          <h3 className="font-medium text-red-950">Danger zone</h3>
+          <form action={deleteTeamAction}>
+            <input type="hidden" name="id" value={team.id} />
+            <button
+              type="submit"
+              className="rounded border border-red-200 bg-white px-3 py-2 text-sm text-red-800 hover:bg-red-50"
+            >
+              Delete team
+            </button>
+          </form>
+          <p className="text-xs text-slate-600">
+            Roster assigns clear first—players stay in the system as pool / unassigned. Only the coach listed above
+            or a super admin can delete the squad shell.
+          </p>
+        </div>
+      )}
+
       <div>
         <Link className="text-sm" href="/teams">
           ← All teams
@@ -347,15 +394,6 @@ async function AdminEditForm({ team }: { team: Awaited<ReturnType<typeof getTeam
             Save
           </button>
         </div>
-      </form>
-      <form action={deleteTeamAction} className="pt-1">
-        <input name="id" type="hidden" value={team.id} />
-        <button
-          className="rounded border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-800"
-          type="submit"
-        >
-          Delete team
-        </button>
       </form>
     </div>
   );

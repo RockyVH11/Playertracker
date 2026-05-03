@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   compareDashboardPlayerRows,
+  normalizeDashboardPlayerSortKey,
   nextPlayerGridSort,
   sortDashboardPlayerRows,
 } from "./player-grid-sort";
@@ -45,6 +46,21 @@ function row(partial: Partial<PlayerListRow> & Pick<PlayerListRow, "id" | "lastN
   };
   return { ...base, ...partial };
 }
+
+describe("normalizeDashboardPlayerSortKey", () => {
+  it("maps removed columns onto current sort keys", () => {
+    expect(normalizeDashboardPlayerSortKey("eval")).toBe("status");
+    expect(normalizeDashboardPlayerSortKey("playUp")).toBe("player");
+  });
+
+  it("passes valid keys through", () => {
+    expect(normalizeDashboardPlayerSortKey("dob")).toBe("dob");
+  });
+
+  it("returns undefined for unknown keys", () => {
+    expect(normalizeDashboardPlayerSortKey("bogus")).toBeUndefined();
+  });
+});
 
 describe("nextPlayerGridSort", () => {
   it("first explicit sort chooses ascending", () => {
