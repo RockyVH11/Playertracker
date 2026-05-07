@@ -1,12 +1,16 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
+import { FieldsSubmenu } from "@/components/layout/fields-submenu";
 import { getSession } from "@/lib/auth/session";
+import { directorPendingRequestsTotal } from "@/lib/nav/director-pending-counts";
+import { prisma } from "@/lib/prisma";
 
 export default async function AdminLayout({
   children,
 }: Readonly<{ children: React.ReactNode }>) {
   const session = await getSession();
   if (!session || session.role !== "SUPER_ADMIN") redirect("/teams");
+  const pendingNav = await directorPendingRequestsTotal(prisma, session, null, null);
   return (
     <div className="space-y-6">
       <div className="border-b border-slate-200 pb-3">
@@ -30,6 +34,13 @@ export default async function AdminLayout({
         </Link>
         <Link className="text-slate-800 underline-offset-4 hover:underline" href="/admin/teams/new">
           Add team
+        </Link>
+        <FieldsSubmenu showEquipment variant="admin" />
+        <Link
+          className="text-slate-800 underline-offset-4 hover:underline"
+          href="/fields/requests"
+        >
+          Pending requests ({pendingNav.total})
         </Link>
       </nav>
       {children}

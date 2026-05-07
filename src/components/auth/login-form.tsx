@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import type { StaffRole } from "@prisma/client";
 import { loginAction } from "@/app/actions/auth";
 import { useFormStatus } from "react-dom";
 import { formatCoachPickerLabel } from "@/lib/ui/formatters";
@@ -10,6 +11,7 @@ type Coach = {
   firstName: string;
   lastName: string;
   email: string | null;
+  staffRole: StaffRole;
   staffRoleLabel: string | null;
   primaryAreaLabel: string | null;
   primaryLocation: { name: string } | null;
@@ -29,7 +31,10 @@ function SubmitButton() {
 }
 
 export function LoginForm({ coaches }: { coaches: Coach[] }) {
-  const [kind, setKind] = useState<"COACH" | "SUPER_ADMIN">("COACH");
+  const [kind, setKind] = useState<"COACH" | "DIRECTOR" | "SUPER_ADMIN">("COACH");
+  const coachChoices = coaches.filter((c) => c.staffRole !== "DIRECTOR");
+  const directorChoices = coaches.filter((c) => c.staffRole === "DIRECTOR");
+
   return (
     <form action={loginAction} className="space-y-4">
       <div className="space-y-2">
@@ -47,6 +52,16 @@ export function LoginForm({ coaches }: { coaches: Coach[] }) {
           </label>
           <label className="inline-flex items-center gap-2">
             <input
+              checked={kind === "DIRECTOR"}
+              name="kind"
+              onChange={() => setKind("DIRECTOR")}
+              type="radio"
+              value="DIRECTOR"
+            />
+            Director
+          </label>
+          <label className="inline-flex items-center gap-2">
+            <input
               checked={kind === "SUPER_ADMIN"}
               name="kind"
               onChange={() => setKind("SUPER_ADMIN")}
@@ -57,7 +72,11 @@ export function LoginForm({ coaches }: { coaches: Coach[] }) {
           </label>
         </div>
         <p className="text-xs text-slate-500">
-          Coach mode uses the shared club password, then you select your name.
+          {kind === "COACH"
+            ? "Coach mode uses the shared club password for coaches/managers—directors appear only under Director mode."
+            : kind === "DIRECTOR"
+              ? "Director mode uses a separate director password. Only director staff profiles are listed."
+              : "Super admin uses its own password and has full club access."}
         </p>
       </div>
       <label className="block space-y-1">
@@ -70,7 +89,7 @@ export function LoginForm({ coaches }: { coaches: Coach[] }) {
           type="password"
         />
       </label>
-      {kind === "COACH" && (
+      {kind === "COACH" ? (
         <label className="block space-y-1">
           <span className="text-sm font-medium text-slate-800">You are</span>
           <select
@@ -78,15 +97,31 @@ export function LoginForm({ coaches }: { coaches: Coach[] }) {
             name="coachId"
             required
           >
-            <option value="">Select coach</option>
-            {coaches.map((c) => (
+            <option value="">Select staff</option>
+            {coachChoices.map((c) => (
               <option key={c.id} value={c.id}>
                 {formatCoachPickerLabel(c)}
               </option>
             ))}
           </select>
         </label>
-      )}
+      ) : kind === "DIRECTOR" ? (
+        <label className="block space-y-1">
+          <span className="text-sm font-medium text-slate-800">You are</span>
+          <select
+            className="w-full rounded border border-slate-300 px-2 py-2 text-sm"
+            name="coachId"
+            required
+          >
+            <option value="">Select director</option>
+            {directorChoices.map((c) => (
+              <option key={c.id} value={c.id}>
+                {formatCoachPickerLabel(c)}
+              </option>
+            ))}
+          </select>
+        </label>
+      ) : null}
       <SubmitButton />
     </form>
   );

@@ -155,7 +155,7 @@ export default async function DashboardPage({ searchParams }: Props) {
   return (
     <div className="space-y-6">
       <div>
-        <h1 className="text-2xl font-semibold text-slate-900">Team-building dashboard</h1>
+        <h1 className="text-2xl font-semibold text-slate-900">Club Dashboard</h1>
         <p className="text-sm text-slate-600">
           Filter teams above, then see every matching player below (assigned and pool). Use age cohort
           and DOB spans to widen or narrow rows. Click player grid column headers to sort (↑ first click

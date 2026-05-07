@@ -82,6 +82,29 @@ enum ProspectStatus {
   CLOSED
 }
 
+enum DayOfWeek {
+  SUN
+  MON
+  TUE
+  WED
+  THU
+  FRI
+  SAT
+}
+
+enum FieldRequestStatus {
+  PENDING
+  APPROVED
+  DENIED
+  CANCELLED
+}
+
+enum EquipmentReservationStatus {
+  ACTIVE
+  CANCELLED
+  COMPLETED
+}
+
 /// Future real accounts; optional fields for MVP
 model User {
   id          String   @id @default(cuid())
@@ -118,6 +141,189 @@ model Coach {
 
   prospectsAssigned   Prospect[] @relation("ProspectAssignedToCoach")
   prospectsSubmitted  Prospect[] @relation("ProspectSubmittedByCoach")
+
+  fieldRequestsSubmitted    FieldRequest[]          @relation("FieldRequestSubmittedByCoach")
+  equipmentReservationsMade EquipmentReservation[]  @relation("EquipmentReservedByCoach")
+}
+
+/// Training complex within a Location (e.g. "Boneyard" at Midland).
+model Complex {
+  id        String   @id @default(cuid())
+  locationId String
+  location  Location @relation(fields: [locationId], references: [id], onDelete: Restrict)
+  name      String
+  notes     String?
+  isActive  Boolean  @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  fields              Field[]
+  availabilityWindows ComplexAvailability[]
+  fieldBlackouts      FieldBlackout[]
+
+  @@index([locationId, isActive])
+}
+
+/// Single pitch / grid cell within a Complex (e.g. "1N", "3S").
+model Field {
+  id        String   @id @default(cuid())
+  complexId String
+  complex   Complex  @relation(fields: [complexId], references: [id], onDelete: Restrict)
+  name      String
+  notes     String?
+  isActive  Boolean  @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  fieldRequestsPreferred FieldRequest[]    @relation("FieldRequestPreferredField")
+  fieldAssignments       FieldAssignment[]
+  fieldBlackouts         FieldBlackout[]
+  availabilityWindows    FieldAvailability[]
+
+  @@index([complexId, isActive])
+}
+
+/// Optional field-level overrides that must remain within ComplexAvailability windows.
+model FieldAvailability {
+  id          String    @id @default(cuid())
+  fieldId     String
+  field       Field     @relation(fields: [fieldId], references: [id], onDelete: Cascade)
+  dayOfWeek   DayOfWeek
+  /// Local clock "HH:mm" (24h) per app convention — same TZ as schedules.
+  startTime   String
+  endTime     String
+  slotMinutes Int       @default(30)
+  isActive    Boolean   @default(true)
+
+  @@index([fieldId, dayOfWeek, isActive])
+}
+
+/// Published open hours used to drive slot grids (Phase B consumes this).
+model ComplexAvailability {
+  id          String    @id @default(cuid())
+  complexId   String
+  complex     Complex   @relation(fields: [complexId], references: [id], onDelete: Cascade)
+  dayOfWeek   DayOfWeek
+  /// Local clock "HH:mm" (24h) per app convention — same TZ as schedules.
+  startTime   String
+  endTime     String
+  slotMinutes Int       @default(30)
+  isActive    Boolean   @default(true)
+
+  @@index([complexId, dayOfWeek, isActive])
+}
+
+model FieldRequest {
+  id                              String             @id @default(cuid())
+  seasonLabel                     String
+  teamId                          String
+  team                            Team               @relation(fields: [teamId], references: [id], onDelete: Restrict)
+  requestedByCoachId              String
+  requestedByCoach                Coach              @relation("FieldRequestSubmittedByCoach", fields: [requestedByCoachId], references: [id], onDelete: Restrict)
+  preferredDayOfWeek              DayOfWeek
+  preferredStartTime              String
+  preferredSessionLengthMinutes   Int
+  preferredFieldId                String?
+  preferredField                  Field?             @relation("FieldRequestPreferredField", fields: [preferredFieldId], references: [id], onDelete: SetNull)
+  recurrenceRequested             Boolean            @default(false)
+  recurrenceEndDate               DateTime?          @db.Date
+  duplicateToOtherDays            DayOfWeek[]        @default([])
+  notes                           String?
+  status                          FieldRequestStatus @default(PENDING)
+  directorNotes                   String?
+  createdAt                       DateTime           @default(now())
+  updatedAt                       DateTime           @updatedAt
+
+  resultingAssignments FieldAssignment[] @relation("AssignmentFromFieldRequest")
+
+  @@index([status, seasonLabel])
+  @@index([teamId])
+  @@index([requestedByCoachId])
+}
+
+model FieldAssignment {
+  id                 String       @id @default(cuid())
+  seasonLabel        String
+  teamId             String
+  team               Team         @relation(fields: [teamId], references: [id], onDelete: Restrict)
+  fieldId            String
+  field              Field        @relation(fields: [fieldId], references: [id], onDelete: Restrict)
+  assignmentDate     DateTime     @db.Date
+  /// Local clock "HH:mm" (24h)
+  startTime          String
+  endTime            String
+  recurrenceGroupId  String?
+  sourceRequestId    String?
+  sourceRequest      FieldRequest? @relation("AssignmentFromFieldRequest", fields: [sourceRequestId], references: [id], onDelete: SetNull)
+  /// Director notes ("south half only", lights off time, …).
+  notes              String?
+  createdAt          DateTime     @default(now())
+  updatedAt          DateTime     @updatedAt
+
+  linkedEquipmentReservation EquipmentReservation[] @relation("EquipmentLinkedFieldAssignment")
+
+  @@index([fieldId, assignmentDate])
+  @@index([teamId, assignmentDate])
+  @@index([recurrenceGroupId])
+  @@index([sourceRequestId])
+}
+
+model FieldBlackout {
+  id           String    @id @default(cuid())
+  complexId    String
+  complex      Complex   @relation(fields: [complexId], references: [id], onDelete: Cascade)
+  fieldId      String?
+  field        Field?    @relation(fields: [fieldId], references: [id], onDelete: Cascade)
+  blackoutDate DateTime  @db.Date
+  startTime    String?
+  endTime      String?
+  reason       String?
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+
+  @@index([complexId, blackoutDate])
+  @@index([fieldId, blackoutDate])
+}
+
+model EquipmentItem {
+  id           String    @id @default(cuid())
+  locationId   String
+  location     Location @relation(fields: [locationId], references: [id], onDelete: Restrict)
+  name         String
+  description  String?
+  /// How many identical units can be out at the same time (e.g. 4 small goals).
+  concurrentCapacity Int   @default(1)
+  isActive     Boolean   @default(true)
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+
+  reservations EquipmentReservation[]
+
+  @@index([locationId, isActive])
+}
+
+model EquipmentReservation {
+  id                      String                       @id @default(cuid())
+  equipmentItemId         String
+  equipmentItem           EquipmentItem                @relation(fields: [equipmentItemId], references: [id], onDelete: Restrict)
+  teamId                  String
+  team                    Team                         @relation(fields: [teamId], references: [id], onDelete: Restrict)
+  reservedByCoachId       String
+  reservedByCoach         Coach                        @relation("EquipmentReservedByCoach", fields: [reservedByCoachId], references: [id], onDelete: Restrict)
+  reservationDate         DateTime                     @db.Date
+  startTime               String
+  endTime                 String
+  /// Units checked out (goals, pole sets, …); counts toward concurrentCapacity on the item.
+  quantity                Int                          @default(1)
+  linkedFieldAssignmentId String?
+  linkedFieldAssignment   FieldAssignment?             @relation("EquipmentLinkedFieldAssignment", fields: [linkedFieldAssignmentId], references: [id], onDelete: SetNull)
+  status                  EquipmentReservationStatus @default(ACTIVE)
+  notes                   String?
+  createdAt               DateTime                     @default(now())
+  updatedAt               DateTime                     @updatedAt
+
+  @@index([equipmentItemId, reservationDate, status])
+  @@index([teamId, reservationDate])
 }
 
 model Location {
@@ -128,8 +334,10 @@ model Location {
 
   teams          Team[]
   players        Player[]
-  primaryCoaches Coach[]    @relation("CoachPrimaryLocation")
+  primaryCoaches Coach[]         @relation("CoachPrimaryLocation")
   prospects      Prospect[]
+  complexes      Complex[]
+  equipmentItems EquipmentItem[]
 }
 
 model League {
@@ -178,6 +386,10 @@ model Team {
   updatedAt                 DateTime @updatedAt
 
   players Player[]
+
+  fieldRequests           FieldRequest[]
+  fieldAssignments        FieldAssignment[]
+  equipmentReservations   EquipmentReservation[]
 
   @@index([seasonLabel, locationId, gender, ageGroup, leagueId, openSession])
 }
