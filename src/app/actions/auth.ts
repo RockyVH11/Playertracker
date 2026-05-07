@@ -3,10 +3,10 @@
 import { redirect } from "next/navigation";
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
-import { assertCoachActive } from "@/lib/rbac";
 import { verifySharedPassword } from "@/lib/auth/shared-password";
 import { signSession, setSessionCookie, clearSessionCookie } from "@/lib/auth/session";
 import { loginFormSchema } from "@/lib/validation/auth";
+import { StaffRole } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 
 const logoutSchema = z.object({ redirectTo: z.string().optional() }).strict();
@@ -19,7 +19,7 @@ export async function loginAction(formData: FormData) {
       ? String(formData.get("coachId"))
       : undefined,
   };
-  if (raw.kind !== "SUPER_ADMIN" && raw.kind !== "COACH") {
+  if (raw.kind !== "SUPER_ADMIN" && raw.kind !== "COACH" && raw.kind !== "DIRECTOR") {
     throw new Error("Invalid role");
   }
   const parsed = loginFormSchema.safeParse({
@@ -37,20 +37,32 @@ export async function loginAction(formData: FormData) {
   if (!v.ok) {
     throw new Error(v.reason);
   }
-  if (parsed.data.kind === "COACH") {
-    if (!parsed.data.coachId) {
-      throw new Error("Select your coach");
-    }
-    try {
-      await assertCoachActive(parsed.data.coachId);
-    } catch {
-      throw new Error("Invalid coach");
-    }
-    const token = await signSession({ role: "COACH", coachId: parsed.data.coachId });
-    await setSessionCookie(token);
-  } else {
+  if (parsed.data.kind === "SUPER_ADMIN") {
     const token = await signSession({ role: "SUPER_ADMIN", coachId: null });
     await setSessionCookie(token);
+  } else {
+    const coachId = parsed.data.coachId;
+    if (!coachId) throw new Error("Select your coach");
+    const row = await prisma.coach.findFirst({
+      where: { id: coachId, isActive: true },
+      select: { staffRole: true },
+    });
+    if (!row) throw new Error("Invalid coach");
+    if (parsed.data.kind === "COACH") {
+      if (row.staffRole === StaffRole.DIRECTOR) {
+        throw new Error(
+          'Directors cannot use Coach mode. Pick "Director" and use the director password.'
+        );
+      }
+      const token = await signSession({ role: "COACH", coachId });
+      await setSessionCookie(token);
+    } else if (parsed.data.kind === "DIRECTOR") {
+      if (row.staffRole !== StaffRole.DIRECTOR) {
+        throw new Error("Director mode lists director staff only. Pick Coach mode.");
+      }
+      const token = await signSession({ role: "COACH", coachId });
+      await setSessionCookie(token);
+    }
   }
   revalidatePath("/");
   redirect("/teams");
@@ -73,6 +85,7 @@ export async function listActiveCoaches() {
       firstName: true,
       lastName: true,
       email: true,
+      staffRole: true,
       staffRoleLabel: true,
       primaryAreaLabel: true,
       primaryLocation: { select: { name: true } },

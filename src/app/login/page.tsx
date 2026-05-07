@@ -15,7 +15,8 @@ export default async function LoginPage() {
         Sign in
       </h1>
       <p className="mt-2 text-center text-sm text-slate-600">
-        Shared club password for MVP. Coach mode requires selecting your name.
+        Shared passwords for MVP: coach/manager, separate director, and super-admin. Pick the mode that
+        matches your role, then select your name where asked.
       </p>
       <div className="mt-8 rounded border border-slate-200 bg-white p-4 shadow-sm">
         <LoginForm coaches={coaches} />

@@ -9,6 +9,8 @@ const serverSchema = z.object({
       "must be a postgres connection string"
     ),
   COACH_SHARED_PASSWORD: z.string().min(1),
+  /** Separate from coach password so staff cannot impersonate directors with the coach shared password */
+  DIRECTOR_SHARED_PASSWORD: z.string().min(1),
   SUPER_ADMIN_PASSWORD: z.string().min(1),
   DEFAULT_SEASON_LABEL: z
     .string()
@@ -31,6 +33,7 @@ export function getServerEnv(): ServerEnv {
   const parsed = serverSchema.safeParse({
     DATABASE_URL: process.env.DATABASE_URL,
     COACH_SHARED_PASSWORD: process.env.COACH_SHARED_PASSWORD,
+    DIRECTOR_SHARED_PASSWORD: process.env.DIRECTOR_SHARED_PASSWORD,
     SUPER_ADMIN_PASSWORD: process.env.SUPER_ADMIN_PASSWORD,
     DEFAULT_SEASON_LABEL: process.env.DEFAULT_SEASON_LABEL,
     CLUB_DISPLAY_NAME: process.env.CLUB_DISPLAY_NAME,
