@@ -1,4 +1,4 @@
-import { FieldRequestStatus, type StaffRole } from "@prisma/client";
+import { FieldRequestStatus, type Prisma, type StaffRole } from "@prisma/client";
 import type { SessionPayload } from "@/lib/auth/types";
 import { canAccessFieldRequestsBoard } from "@/lib/rbac-fields";
 
@@ -8,7 +8,7 @@ import { canAccessFieldRequestsBoard } from "@/lib/rbac-fields";
  */
 export async function directorPendingRequestsTotal(
   prisma: {
-    fieldRequest: { count: (args: unknown) => Promise<number> };
+    fieldRequest: { count: (args?: Prisma.FieldRequestCountArgs) => Promise<number> };
   },
   session: SessionPayload,
   viewerStaffRole: StaffRole | null,

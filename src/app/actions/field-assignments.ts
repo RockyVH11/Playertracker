@@ -369,7 +369,15 @@ export async function createRecurringFieldAssignmentsAction(
     data: { recurrenceGroupId },
   });
 
-  const peersByYmd = new Map<string, Awaited<ReturnType<typeof prisma.fieldAssignment.findMany>>>();
+  type AssignmentPeer = {
+    id: string;
+    fieldId: string;
+    teamId: string;
+    assignmentDate: Date;
+    startTime: string;
+    endTime: string;
+  };
+  const peersByYmd = new Map<string, AssignmentPeer[]>();
   const existing = await prisma.fieldAssignment.findMany({
     where: {
       assignmentDate: { gte: startDate, lte: endDate },
