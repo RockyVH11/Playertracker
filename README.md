@@ -53,6 +53,10 @@ Open [http://localhost:3000](http://localhost:3000) — you will be redirected t
 - Director: [`docs/director-quick-guide.md`](./docs/director-quick-guide.md)
 - Super admin: [`docs/super-admin-quick-guide.md`](./docs/super-admin-quick-guide.md)
 
+## Database schema (tables & required fields)
+
+Readable reference aligned with [`prisma/schema.prisma`](./prisma/schema.prisma): [`docs/database-schema.md`](./docs/database-schema.md).
+
 ## Permission Matrix (MVP)
 
 - **Super Admin**
