@@ -202,6 +202,8 @@ model Player {
   sourceSubmittedAt        DateTime?
   importedFromInterestForm Boolean           @default(false)
 
+  coachNotes              String?         @db.VarChar(500)
+
   evaluationLevel         EvaluationLevel @default(NOT_EVALUATED)
   evaluationNotes         String?
   evaluationAuthorCoachId String?

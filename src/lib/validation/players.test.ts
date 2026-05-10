@@ -16,6 +16,7 @@ const base = {
   overrideAgeGroup: "",
   evaluationLevel: EvaluationLevel.NOT_EVALUATED,
   evaluationNotes: null,
+  coachNotes: null,
   guardianName: null,
   guardianPhone: null,
   guardianEmail: null,
@@ -46,5 +47,19 @@ describe("playerCreateSchema", () => {
     const r = playerCreateSchema.safeParse({ ...base, dob: "05/01/2014" });
     expect(r.success).toBe(true);
     expect(parseDobToUtcDate("05/01/2014").toISOString().slice(0, 10)).toBe("2014-05-01");
+  });
+
+  it("rejects coach notes longer than 500 chars", () => {
+    const r = playerCreateSchema.safeParse({
+      ...base,
+      coachNotes: "z".repeat(501),
+    });
+    expect(r.success).toBe(false);
+  });
+
+  it("accepts trim-to-null coach notes", () => {
+    const r = playerCreateSchema.safeParse({ ...base, coachNotes: "   " });
+    expect(r.success).toBe(true);
+    if (r.success) expect(r.data.coachNotes).toBe(null);
   });
 });

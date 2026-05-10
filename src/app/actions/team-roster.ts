@@ -32,8 +32,12 @@ import {
   requestGuestSchema,
   requestSecondarySchema,
   returnPrimaryInviteToPoolSchema,
+  saveTeamRosterPlayerNotesEvalSchema,
   transitionPlacementSchema,
 } from "@/lib/validation/team-roster";
+import { resolveTeamRosterPagePermissions } from "@/lib/roster/team-roster-page-permissions";
+import { playerIsLinkedToTeamRoster } from "@/lib/roster/assert-player-on-team-sheet";
+import { updatePlayerCoachFieldsForLinkedTeamSheet } from "@/lib/services/players.service";
 
 export type TeamRosterActionResult = { ok: true } | { ok: false; error: string };
 
@@ -823,6 +827,74 @@ export async function assignPlayerToTeamRosterFormAction(formData: FormData): Pr
     redirect(`/teams/${teamId}?error=${encodeURIComponent(result.error)}`);
   }
   redirect(`/teams/${teamId}?rosterAdded=1&pipelineRole=${role}`);
+}
+
+export async function saveTeamRosterPlayerNotesEvalFormAction(formData: FormData): Promise<void> {
+  const session = await getSession();
+  if (!session || (session.role !== "SUPER_ADMIN" && !isCoachSession(session))) {
+    redirect("/login");
+  }
+
+  const teamIdRaw = String(formData.get("teamId") ?? "");
+  const parsed = saveTeamRosterPlayerNotesEvalSchema.safeParse({
+    teamId: teamIdRaw,
+    playerId: String(formData.get("playerId") ?? ""),
+    coachNotes: String(formData.get("coachNotes") ?? ""),
+    evaluationLevel: String(formData.get("evaluationLevel") ?? ""),
+    evaluationNotes: String(formData.get("evaluationNotes") ?? ""),
+  });
+  if (!parsed.success) {
+    redirect(
+      `/teams/${teamIdRaw}?error=${encodeURIComponent("Check coach notes length (max 500) and evaluation fields.")}`
+    );
+  }
+  const { teamId, playerId, coachNotes, evaluationLevel, evaluationNotes } = parsed.data;
+
+  try {
+    const { staffRole, primaryLocationId } = await viewerStaffContext(session);
+    await assertCoachCanAccessTeamForMyTeam(session, staffRole, primaryLocationId, teamId);
+  } catch {
+    redirect(`/teams/${teamId}?error=${encodeURIComponent("Not authorized for this team.")}`);
+  }
+
+  const team = await prisma.team.findFirst({
+    where: { id: teamId },
+    select: { id: true, coachId: true, locationId: true },
+  });
+  if (!team) {
+    redirect(`/teams/${teamId}?error=${encodeURIComponent("Team not found.")}`);
+  }
+
+  const placements = await prisma.teamPlayerPlacement.findMany({
+    where: { teamId },
+    select: { id: true, status: true, playerId: true },
+  });
+  const perms = await resolveTeamRosterPagePermissions(
+    session,
+    team,
+    placements.map((r) => ({ id: r.id, status: r.status, playerId: r.playerId }))
+  );
+  if (!perms.canAddPlayersFromPool) {
+    redirect(`/teams/${teamId}?error=${encodeURIComponent("You can't edit roster notes here.")}`);
+  }
+
+  const linked = await playerIsLinkedToTeamRoster(teamId, playerId);
+  if (!linked) {
+    redirect(
+      `/teams/${teamId}?error=${encodeURIComponent("That player isn't on this team's pool or placement list.")}`
+    );
+  }
+
+  await updatePlayerCoachFieldsForLinkedTeamSheet({
+    session,
+    teamId,
+    playerId,
+    coachNotes,
+    evaluationLevel,
+    evaluationNotes,
+  });
+
+  redirect(`/teams/${teamId}?rosterNotesSaved=1`);
 }
 
 /** `<form action>` wrappers — Next form handlers expect `Promise<void>`, not a result payload. */

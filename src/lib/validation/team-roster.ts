@@ -1,4 +1,15 @@
 import { z } from "zod";
+import { EvaluationLevel } from "@prisma/client";
+
+const rosterCoachNotesField = z
+  .preprocess((v) => (v == null ? "" : String(v)), z.string())
+  .transform((s) => s.trim())
+  .pipe(
+    z
+      .string()
+      .max(500, "Coach notes must be at most 500 characters.")
+      .transform((t) => (t === "" ? null : t))
+  );
 
 /** String literals keep this module free of Prisma init in Vitest workers. */
 const transitionNextPlacementStatuses = ["OFFERED", "COMMITTED", "NOT_INTERESTED"] as const;
@@ -79,5 +90,18 @@ export const approvePlacementIdSchema = z
   .object({
     placementId: z.string().cuid(),
     notes: z.string().trim().max(2000).optional(),
+  })
+  .strict();
+
+export const saveTeamRosterPlayerNotesEvalSchema = z
+  .object({
+    teamId: z.string().cuid(),
+    playerId: z.string().cuid(),
+    coachNotes: rosterCoachNotesField,
+    evaluationLevel: z.nativeEnum(EvaluationLevel),
+    evaluationNotes: z
+      .preprocess((v) => (v == null ? "" : String(v)), z.string())
+      .transform((s) => s.trim())
+      .pipe(z.string().transform((t) => (t === "" ? null : t))),
   })
   .strict();

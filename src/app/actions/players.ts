@@ -74,6 +74,7 @@ export async function createPlayerAction(formData: FormData) {
     overrideAgeGroup: String(formData.get("overrideAgeGroup") ?? ""),
     evaluationLevel: String(formData.get("evaluationLevel") ?? "") as EvaluationLevel,
     evaluationNotes: String(formData.get("evaluationNotes") ?? ""),
+    coachNotes: String(formData.get("coachNotes") ?? ""),
     guardianName: String(formData.get("guardianName") ?? ""),
     guardianPhone: String(formData.get("guardianPhone") ?? ""),
     guardianEmail: String(formData.get("guardianEmail") ?? ""),
@@ -136,6 +137,7 @@ export async function createPlayerAction(formData: FormData) {
         overrideAgeGroup: p.overrideAgeGroup ?? null,
         evaluationLevel: p.evaluationLevel,
         evaluationNotes: p.evaluationNotes ?? null,
+        coachNotes: p.coachNotes ?? null,
         contact,
       },
     });
@@ -178,6 +180,7 @@ export async function updatePlayerAction(formData: FormData) {
     overrideAgeGroup: String(formData.get("overrideAgeGroup") ?? ""),
     evaluationLevel: String(formData.get("evaluationLevel") ?? "") as EvaluationLevel,
     evaluationNotes: String(formData.get("evaluationNotes") ?? ""),
+    coachNotes: String(formData.get("coachNotes") ?? ""),
     guardianName: String(formData.get("guardianName") ?? ""),
     guardianPhone: String(formData.get("guardianPhone") ?? ""),
     guardianEmail: String(formData.get("guardianEmail") ?? ""),
@@ -215,6 +218,7 @@ export async function updatePlayerAction(formData: FormData) {
         overrideAgeGroup: p.overrideAgeGroup ?? null,
         evaluationLevel: p.evaluationLevel,
         evaluationNotes: p.evaluationNotes ?? null,
+        coachNotes: p.coachNotes ?? null,
         contact: contact.guardianName || contact.guardianPhone || contact.guardianEmail
           ? contact
           : null,

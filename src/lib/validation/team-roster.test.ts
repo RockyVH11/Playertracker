@@ -1,9 +1,11 @@
 import { describe, expect, it } from "vitest";
+import { EvaluationLevel } from "@prisma/client";
 import {
   addTeamAssistantCoachSchema,
   assignPlayerToTeamRosterSchema,
   removeTeamAssistantCoachSchema,
   returnPrimaryInviteToPoolSchema,
+  saveTeamRosterPlayerNotesEvalSchema,
 } from "./team-roster";
 
 describe("returnPrimaryInviteToPoolSchema", () => {
@@ -67,5 +69,32 @@ describe("assignPlayerToTeamRosterSchema", () => {
     });
     expect(s.success).toBe(true);
     if (s.success) expect(s.data.poolPlacementRole).toBe("secondary");
+  });
+});
+
+const validTeamIdPlayerId = {
+  teamId: "clabcdefghijklmnopabcdefghijk",
+  playerId: "clabcdefghijklmnopabcdefghijk",
+};
+
+describe("saveTeamRosterPlayerNotesEvalSchema", () => {
+  it("accepts valid payload", () => {
+    const r = saveTeamRosterPlayerNotesEvalSchema.safeParse({
+      ...validTeamIdPlayerId,
+      coachNotes: "",
+      evaluationLevel: EvaluationLevel.RL,
+      evaluationNotes: "",
+    });
+    expect(r.success).toBe(true);
+  });
+
+  it("rejects coach notes over 500 chars", () => {
+    const r = saveTeamRosterPlayerNotesEvalSchema.safeParse({
+      ...validTeamIdPlayerId,
+      coachNotes: "x".repeat(501),
+      evaluationLevel: EvaluationLevel.RL,
+      evaluationNotes: "",
+    });
+    expect(r.success).toBe(false);
   });
 });
