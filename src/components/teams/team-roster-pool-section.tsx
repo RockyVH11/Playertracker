@@ -14,9 +14,11 @@ export function TeamRosterPoolSection(props: {
     <section className="space-y-2">
       <h2 className="text-lg font-semibold text-slate-900">Available player pool</h2>
       <p className="text-xs text-slate-600">
-        Unassigned players at this location who match this team&apos;s gender and age eligibility. Use{" "}
-        <strong>Add to roster</strong> to assign them here — they appear as <strong>INVITED</strong> on the
-        pipeline above (same as team-building &quot;commit&quot;).
+        Unassigned players at this location who match this team&apos;s gender and age eligibility. Add a{" "}
+        <strong>primary</strong> roster track (assignment + invited placement), or start a{" "}
+        <strong>secondary</strong> (blue pipeline) / <strong>guest</strong> (gold pipeline) track without assigning
+        them here — then use <strong>Request approval</strong> on the pipeline. Guest requests require the player to be
+        committed elsewhere first; use secondary while they are still in the pool only.
       </p>
       <div className="overflow-x-auto rounded border border-slate-200 bg-white">
         <table className="min-w-full text-left text-sm">
@@ -27,7 +29,7 @@ export function TeamRosterPoolSection(props: {
               <th className="px-2 py-2">DOB</th>
               <th className="px-2 py-2">Location</th>
               <th className="px-2 py-2">Position</th>
-              <th className="px-2 py-2"> </th>
+              <th className="px-2 py-2 text-right">Add to pipeline</th>
             </tr>
           </thead>
           <tbody>
@@ -59,18 +61,43 @@ export function TeamRosterPoolSection(props: {
                   <td className="px-2 py-2 whitespace-nowrap">{toUsDateUtc(p.dob)}</td>
                   <td className="px-2 py-2">{p.location.name}</td>
                   <td className="px-2 py-2">{p.primaryPosition}</td>
-                  <td className="px-2 py-2 text-right">
+                  <td className="px-2 py-2">
                     {canAddFromPool ? (
-                      <form action={assignPlayerToTeamRosterFormAction} className="inline">
-                        <input name="teamId" type="hidden" value={teamId} />
-                        <input name="playerId" type="hidden" value={p.id} />
-                        <button
-                          type="submit"
-                          className="rounded bg-slate-900 px-2 py-1 text-xs font-medium text-white hover:bg-slate-800"
-                        >
-                          Add to roster
-                        </button>
-                      </form>
+                      <div className="flex flex-col items-end gap-1 sm:flex-row sm:flex-wrap sm:justify-end">
+                        <form action={assignPlayerToTeamRosterFormAction} className="inline">
+                          <input name="teamId" type="hidden" value={teamId} />
+                          <input name="playerId" type="hidden" value={p.id} />
+                          <input name="poolPlacementRole" type="hidden" value="primary" />
+                          <button
+                            type="submit"
+                            className="rounded bg-slate-900 px-2 py-1 text-xs font-medium text-white hover:bg-slate-800"
+                          >
+                            Primary
+                          </button>
+                        </form>
+                        <form action={assignPlayerToTeamRosterFormAction} className="inline">
+                          <input name="teamId" type="hidden" value={teamId} />
+                          <input name="playerId" type="hidden" value={p.id} />
+                          <input name="poolPlacementRole" type="hidden" value="secondary" />
+                          <button
+                            type="submit"
+                            className="rounded bg-sky-700 px-2 py-1 text-xs font-medium text-white hover:bg-sky-800"
+                          >
+                            Secondary
+                          </button>
+                        </form>
+                        <form action={assignPlayerToTeamRosterFormAction} className="inline">
+                          <input name="teamId" type="hidden" value={teamId} />
+                          <input name="playerId" type="hidden" value={p.id} />
+                          <input name="poolPlacementRole" type="hidden" value="guest" />
+                          <button
+                            type="submit"
+                            className="rounded bg-amber-600 px-2 py-1 text-xs font-medium text-white hover:bg-amber-700"
+                          >
+                            Guest
+                          </button>
+                        </form>
+                      </div>
                     ) : (
                       <span className="text-xs text-slate-400">—</span>
                     )}

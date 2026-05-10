@@ -12,6 +12,7 @@ import {
   approveSecondaryByDirectorFormAction,
   denyGuestByHeadCoachFormAction,
   denySecondaryByDirectorFormAction,
+  requestPlacementApprovalFromInvitedFormAction,
   returnPrimaryInviteToPoolFormAction,
   transitionTeamPlacementFormAction,
 } from "@/app/actions/team-roster";
@@ -21,6 +22,18 @@ import {
   formatPlacementStatusLabel,
   formatPlacementTypeLabel,
 } from "@/lib/roster/team-roster-display";
+
+function pipelineRowClass(row: {
+  placementType: TeamPlayerPlacementType;
+}): string {
+  if (row.placementType === TeamPlayerPlacementType.SECONDARY) {
+    return "bg-sky-200";
+  }
+  if (row.placementType === TeamPlayerPlacementType.GUEST) {
+    return "bg-amber-200";
+  }
+  return "";
+}
 
 type PlacementRow = {
   id: string;
@@ -115,7 +128,10 @@ export function TeamRosterPipelineSection(props: {
                 </tr>
               ) : (
                 placements.map((row) => (
-                  <tr key={row.id} className="border-t border-slate-100 align-top">
+                  <tr
+                    key={row.id}
+                    className={`border-t border-slate-100 align-top ${pipelineRowClass(row)}`}
+                  >
                     <td className="px-2 py-2">
                       <Link className="text-slate-900 underline-offset-4 hover:underline" href={`/players/${row.player.id}`}>
                         {row.player.lastName}, {row.player.firstName}
@@ -152,22 +168,46 @@ function PlacementRowActions(props: {
   const { canTransitionPipeline, canApproveSecondary, guestActionPlacementIds } = permissions;
 
   if (row.status === TeamPlayerPlacementStatus.INVITED && canTransitionPipeline) {
-    return (
-      <div className="flex flex-wrap gap-1">
-        {row.placementType === TeamPlayerPlacementType.PRIMARY ||
-        row.placementType === TeamPlayerPlacementType.SECONDARY ||
-        row.placementType === TeamPlayerPlacementType.GUEST ? (
-          <form action={returnPrimaryInviteToPoolFormAction}>
+    const returnToPool =
+      row.placementType === TeamPlayerPlacementType.PRIMARY ||
+      row.placementType === TeamPlayerPlacementType.SECONDARY ||
+      row.placementType === TeamPlayerPlacementType.GUEST ? (
+        <form action={returnPrimaryInviteToPoolFormAction}>
+          <input name="placementId" type="hidden" value={row.id} />
+          <input name="teamId" type="hidden" value={teamId} />
+          <button
+            className="rounded border border-amber-700/40 bg-white/90 px-2 py-1 text-xs text-amber-950"
+            type="submit"
+          >
+            Return to pool
+          </button>
+        </form>
+      ) : null;
+
+    if (
+      row.placementType === TeamPlayerPlacementType.SECONDARY ||
+      row.placementType === TeamPlayerPlacementType.GUEST
+    ) {
+      return (
+        <div className="flex flex-wrap gap-1">
+          <form action={requestPlacementApprovalFromInvitedFormAction}>
             <input name="placementId" type="hidden" value={row.id} />
             <input name="teamId" type="hidden" value={teamId} />
             <button
-              className="rounded border border-amber-300 bg-amber-50 px-2 py-1 text-xs text-amber-950"
+              className="rounded border border-slate-800 bg-slate-900 px-2 py-1 text-xs font-medium text-white"
               type="submit"
             >
-              Return to pool
+              Request approval
             </button>
           </form>
-        ) : null}
+          {returnToPool}
+        </div>
+      );
+    }
+
+    return (
+      <div className="flex flex-wrap gap-1">
+        {returnToPool}
         <form action={transitionTeamPlacementFormAction}>
           <input name="placementId" type="hidden" value={row.id} />
           <input name="nextStatus" type="hidden" value={TeamPlayerPlacementStatus.OFFERED} />

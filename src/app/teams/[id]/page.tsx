@@ -37,7 +37,12 @@ export default async function TeamDetailPage({ params, searchParams }: SearchPro
   const sp = await searchParams;
   const error = typeof sp.error === "string" ? sp.error : null;
   const rosterAdded = sp.rosterAdded === "1";
+  const pipelineRole =
+    typeof sp.pipelineRole === "string" && ["primary", "secondary", "guest"].includes(sp.pipelineRole)
+      ? sp.pipelineRole
+      : null;
   const returnedToPool = sp.returnedToPool === "1";
+  const approvalRequested = sp.approvalRequested === "1";
   const session = await getSession();
   if (!session) redirect("/login");
   const team = await getTeamById(id);
@@ -87,7 +92,17 @@ export default async function TeamDetailPage({ params, searchParams }: SearchPro
       </div>
       {rosterAdded && (
         <div className="rounded border border-emerald-200 bg-emerald-50 px-3 py-2 text-sm text-emerald-900">
-          Player added to roster — they appear in the pipeline as INVITED.
+          {pipelineRole === "secondary"
+            ? "Player added on a secondary track (blue row) — use Request approval when ready for director review."
+            : pipelineRole === "guest"
+              ? "Player added on a guest track (gold row) — they must be committed elsewhere before Request approval."
+              : "Player added to the primary roster — assigned here with an invited placement in the pipeline."}
+        </div>
+      )}
+      {approvalRequested && (
+        <div className="rounded border border-violet-200 bg-violet-50 px-3 py-2 text-sm text-violet-950">
+          Approval requested — directors (secondary) or the committed team&apos;s head coach (guest) can act on the
+          pending row in the pipeline.
         </div>
       )}
       {returnedToPool && (

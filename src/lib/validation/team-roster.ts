@@ -20,8 +20,17 @@ export const invitePlayerSchema = teamRosterTeamPlayerSchema.extend({
   notes: z.string().trim().max(2000).optional(),
 });
 
-/** Assign pool player to team → `assignedTeamId` + PRIMARY INVITED placement sync */
-export const assignPlayerToTeamRosterSchema = teamRosterTeamPlayerSchema;
+const poolPlacementRoleEnum = z.enum(["primary", "secondary", "guest"]);
+
+/** Assign from pool: primary assigns team + placement sync; secondary/guest add INVITED row only (no assignment). */
+export const assignPlayerToTeamRosterSchema = teamRosterTeamPlayerSchema
+  .extend({
+    poolPlacementRole: z.preprocess(
+      (v) => (v === "" || v == null ? "primary" : v),
+      poolPlacementRoleEnum
+    ),
+  })
+  .strict();
 
 export const returnPrimaryInviteToPoolSchema = z
   .object({

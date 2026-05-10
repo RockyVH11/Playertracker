@@ -284,6 +284,100 @@ export async function returnPrimaryInviteToPoolFormAction(formData: FormData): P
   redirect(`/teams/${teamId}?returnedToPool=1`);
 }
 
+/** Secondary / guest pipeline: INVITED → director or head-coach approval queue. */
+export async function requestPlacementApprovalFromInvitedAction(
+  formData: FormData
+): Promise<TeamRosterActionResult> {
+  const session = await getSession();
+  if (!session || (session.role !== "SUPER_ADMIN" && !isCoachSession(session))) {
+    return { ok: false, error: "Sign in as staff." };
+  }
+
+  const parsed = returnPrimaryInviteToPoolSchema.safeParse({
+    placementId: String(formData.get("placementId") ?? ""),
+    teamId: String(formData.get("teamId") ?? ""),
+  });
+  if (!parsed.success) return { ok: false, error: "Invalid request." };
+
+  const placement = await prisma.teamPlayerPlacement.findFirst({
+    where: { id: parsed.data.placementId, teamId: parsed.data.teamId },
+    select: {
+      id: true,
+      playerId: true,
+      teamId: true,
+      status: true,
+      placementType: true,
+    },
+  });
+  if (!placement) return { ok: false, error: "Placement not found." };
+
+  if (placement.status !== TeamPlayerPlacementStatus.INVITED) {
+    return { ok: false, error: "Only invited placements can request approval from here." };
+  }
+
+  const isSecondary = placement.placementType === TeamPlayerPlacementType.SECONDARY;
+  const isGuest = placement.placementType === TeamPlayerPlacementType.GUEST;
+  if (!isSecondary && !isGuest) {
+    return { ok: false, error: "Request approval applies to secondary or guest placements only." };
+  }
+
+  const { staffRole, primaryLocationId } = await viewerStaffContext(session);
+  try {
+    await assertCoachCanAccessTeamForMyTeam(session, staffRole, primaryLocationId, placement.teamId);
+  } catch (e) {
+    return { ok: false, error: e instanceof Error ? e.message : "Not authorized." };
+  }
+  if (session.role !== "SUPER_ADMIN") {
+    if (!isCoachSession(session)) return { ok: false, error: "Sign in as staff." };
+    const teamRow = await prisma.team.findFirst({
+      where: { id: placement.teamId },
+      select: { locationId: true },
+    });
+    const directorOk =
+      staffRole === StaffRole.DIRECTOR &&
+      primaryLocationId != null &&
+      teamRow != null &&
+      primaryLocationId === teamRow.locationId;
+    if (!directorOk && !(await coachIsOnTeam(session.coachId, placement.teamId))) {
+      return { ok: false, error: "Not authorized for this team." };
+    }
+  }
+
+  if (isGuest) {
+    const committed = await findCommittedPrimaryPlacement(placement.playerId);
+    if (!committed || committed.teamId === placement.teamId) {
+      return {
+        ok: false,
+        error:
+          "Guest approval requires the player to be committed to a different team first. Use secondary while they are unassigned.",
+      };
+    }
+  }
+
+  await prisma.teamPlayerPlacement.update({
+    where: { id: placement.id },
+    data: {
+      status: isSecondary
+        ? TeamPlayerPlacementStatus.SECONDARY_REQUESTED
+        : TeamPlayerPlacementStatus.GUEST_REQUESTED,
+      requestedByCoachId: isCoachSession(session) ? session.coachId : null,
+    },
+  });
+
+  await syncPlayerLifecycleFromPlacements(placement.playerId);
+  revalidateAfterRosterMutation([placement.teamId]);
+  return { ok: true };
+}
+
+export async function requestPlacementApprovalFromInvitedFormAction(formData: FormData): Promise<void> {
+  const teamId = String(formData.get("teamId") ?? "");
+  const result = await requestPlacementApprovalFromInvitedAction(formData);
+  if (!result.ok) {
+    redirect(`/teams/${teamId}?error=${encodeURIComponent(result.error)}`);
+  }
+  redirect(`/teams/${teamId}?approvalRequested=1`);
+}
+
 export async function requestSecondaryPlacementAction(formData: FormData): Promise<TeamRosterActionResult> {
   const session = await getSession();
   if (!session || (session.role !== "SUPER_ADMIN" && !isCoachSession(session))) {
@@ -583,18 +677,21 @@ export async function assignPlayerToTeamRosterAction(formData: FormData): Promis
   const parsed = assignPlayerToTeamRosterSchema.safeParse({
     teamId: String(formData.get("teamId") ?? ""),
     playerId: String(formData.get("playerId") ?? ""),
+    poolPlacementRole: String(formData.get("poolPlacementRole") ?? ""),
   });
   if (!parsed.success) return { ok: false, error: "Invalid request." };
 
+  const { poolPlacementRole, teamId: rosterTeamId, playerId: rosterPlayerId } = parsed.data;
+
   const { staffRole, primaryLocationId } = await viewerStaffContext(session);
   try {
-    await assertCoachCanAccessTeamForMyTeam(session, staffRole, primaryLocationId, parsed.data.teamId);
+    await assertCoachCanAccessTeamForMyTeam(session, staffRole, primaryLocationId, rosterTeamId);
   } catch (e) {
     return { ok: false, error: e instanceof Error ? e.message : "Not authorized." };
   }
 
   const team = await prisma.team.findFirst({
-    where: { id: parsed.data.teamId },
+    where: { id: rosterTeamId },
     select: { id: true, gender: true, ageGroup: true, locationId: true, coachId: true },
   });
   if (!team) return { ok: false, error: "Team not found." };
@@ -616,7 +713,7 @@ export async function assignPlayerToTeamRosterAction(formData: FormData): Promis
   }
 
   const player = await prisma.player.findFirst({
-    where: { id: parsed.data.playerId },
+    where: { id: rosterPlayerId },
     select: {
       id: true,
       assignedTeamId: true,
@@ -648,7 +745,57 @@ export async function assignPlayerToTeamRosterAction(formData: FormData): Promis
     return { ok: false, error: "Player is not eligible for this team’s pool (age/gender rules)." };
   }
 
-  if (player.assignedTeamId === parsed.data.teamId) {
+  if (poolPlacementRole === "secondary" || poolPlacementRole === "guest") {
+    if (player.assignedTeamId != null) {
+      return {
+        ok: false,
+        error: "Add as secondary or guest from the pool requires the player to be unassigned.",
+      };
+    }
+    const placementType =
+      poolPlacementRole === "secondary"
+        ? TeamPlayerPlacementType.SECONDARY
+        : TeamPlayerPlacementType.GUEST;
+
+    const existing = await prisma.teamPlayerPlacement.findUnique({
+      where: {
+        playerId_teamId: { playerId: player.id, teamId: rosterTeamId },
+      },
+    });
+
+    if (existing) {
+      if (existing.status !== TeamPlayerPlacementStatus.NOT_INTERESTED) {
+        return {
+          ok: false,
+          error: "This player already has an active placement row for this team.",
+        };
+      }
+      await prisma.teamPlayerPlacement.update({
+        where: { id: existing.id },
+        data: {
+          status: TeamPlayerPlacementStatus.INVITED,
+          placementType,
+          requestedByCoachId: isCoachSession(session) ? session.coachId : null,
+        },
+      });
+    } else {
+      await prisma.teamPlayerPlacement.create({
+        data: {
+          playerId: player.id,
+          teamId: rosterTeamId,
+          status: TeamPlayerPlacementStatus.INVITED,
+          placementType,
+          requestedByCoachId: isCoachSession(session) ? session.coachId : null,
+        },
+      });
+    }
+
+    await syncPlayerLifecycleFromPlacements(player.id);
+    revalidateAfterRosterMutation([rosterTeamId]);
+    return { ok: true };
+  }
+
+  if (player.assignedTeamId === rosterTeamId) {
     return { ok: true };
   }
 
@@ -656,26 +803,29 @@ export async function assignPlayerToTeamRosterAction(formData: FormData): Promis
 
   await prisma.player.update({
     where: { id: player.id },
-    data: { assignedTeamId: parsed.data.teamId },
+    data: { assignedTeamId: rosterTeamId },
   });
 
   await syncPrimaryPlacementFromAssignedTeamChange({
     playerId: player.id,
     fromAssignedTeamId: prevTeamId,
-    toAssignedTeamId: parsed.data.teamId,
+    toAssignedTeamId: rosterTeamId,
   });
 
-  revalidateAfterRosterMutation([parsed.data.teamId, prevTeamId]);
+  revalidateAfterRosterMutation([rosterTeamId, prevTeamId]);
   return { ok: true };
 }
 
 export async function assignPlayerToTeamRosterFormAction(formData: FormData): Promise<void> {
   const teamId = String(formData.get("teamId") ?? "");
+  const roleRaw = String(formData.get("poolPlacementRole") ?? "primary");
+  const role =
+    roleRaw === "secondary" || roleRaw === "guest" || roleRaw === "primary" ? roleRaw : "primary";
   const result = await assignPlayerToTeamRosterAction(formData);
   if (!result.ok) {
     redirect(`/teams/${teamId}?error=${encodeURIComponent(result.error)}`);
   }
-  redirect(`/teams/${teamId}?rosterAdded=1`);
+  redirect(`/teams/${teamId}?rosterAdded=1&pipelineRole=${role}`);
 }
 
 /** `<form action>` wrappers — Next form handlers expect `Promise<void>`, not a result payload. */
