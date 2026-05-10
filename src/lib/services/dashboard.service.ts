@@ -95,7 +95,7 @@ export async function listTeamDashboardRows(
           assignedTeamId: null,
           gender: t.gender,
           locationId: t.locationId,
-          playerStatus: { in: ["AVAILABLE", "INVITED"] as PlayerStatus[] },
+          playerStatus: { in: [PlayerStatus.AVAILABLE, PlayerStatus.ACTIVE] },
           OR: [
             { overrideAgeGroup: t.ageGroup },
             { AND: [{ overrideAgeGroup: null }, { derivedAgeGroup: t.ageGroup }] },

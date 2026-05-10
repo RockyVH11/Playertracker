@@ -8,6 +8,7 @@ import {
   PlayerStatus,
 } from "@prisma/client";
 import { isYouthAgeGroup } from "@/lib/data/age-groups";
+import { normalizeLegacyPlayerStatusQueryParam } from "@/lib/dashboard/legacy-player-status-query";
 
 function validUtcDate(y: number, month: number, day: number): Date | null {
   const d = new Date(Date.UTC(y, month - 1, day, 0, 0, 0, 0));
@@ -174,7 +175,10 @@ export const playerFilterSchema = z
     evaluationLevel: z.nativeEnum(EvaluationLevel).optional(),
     assignedTeamId: z.string().cuid().optional(),
     assignment: z.enum(["any", "available", "assigned"]).optional(),
-    playerStatus: z.nativeEnum(PlayerStatus).optional(),
+    playerStatus: z
+      .string()
+      .optional()
+      .transform((s) => normalizeLegacyPlayerStatusQueryParam(s)),
     primaryPosition: z.nativeEnum(PlayerPosition).optional(),
   })
   .strict();

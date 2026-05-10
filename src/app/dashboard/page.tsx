@@ -21,6 +21,7 @@ import {
   type PlayerGridSortKey,
 } from "@/lib/dashboard/player-grid-sort";
 import type { DashboardQueryValues } from "@/lib/dashboard/dashboard-query-params";
+import { normalizeLegacyPlayerStatusQueryParam } from "@/lib/dashboard/legacy-player-status-query";
 import { DashboardPlayerSortTh } from "@/components/dashboard/dashboard-player-sort-th";
 import { DashboardTableCopySection } from "@/components/dashboard/dashboard-table-copy-section";
 import { isCoachSession } from "@/lib/auth/types";
@@ -40,7 +41,10 @@ const schema = z
     dobMin: z.string().optional(),
     dobMax: z.string().optional(),
     playerEvaluation: z.nativeEnum(EvaluationLevel).optional(),
-    playerStatus: z.nativeEnum(PlayerStatus).optional(),
+    playerStatus: z
+      .string()
+      .optional()
+      .transform((s) => normalizeLegacyPlayerStatusQueryParam(s)),
     playerPosition: z.nativeEnum(PlayerPosition).optional(),
     willingToPlayUp: z.enum(["any", "yes", "no"]).optional(),
     pSort: z.string().optional(),
