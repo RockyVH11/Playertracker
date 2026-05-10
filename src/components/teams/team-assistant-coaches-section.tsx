@@ -1,4 +1,7 @@
-import { addAssistantCoachAction } from "@/app/actions/team-assistants";
+import {
+  addAssistantCoachAction,
+  removeAssistantCoachAction,
+} from "@/app/actions/team-assistants";
 import type { TeamAssistantCoachRow } from "@/lib/services/teams.service";
 import { formatCoachPickerLabel } from "@/lib/ui/formatters";
 
@@ -37,33 +40,57 @@ export function TeamAssistantCoachesSection(props: {
       )}
 
       {canManage ? (
-        <form action={addAssistantCoachAction} className="mt-4 flex flex-wrap items-end gap-2">
-          <input name="teamId" type="hidden" value={teamId} />
-          <label className="flex min-w-[14rem] flex-1 flex-col gap-1 text-xs text-slate-600">
-            <span>Add staff member</span>
-            <select
-              name="coachId"
-              required
-              className="rounded border border-slate-300 px-2 py-2 text-sm text-slate-900"
-              defaultValue=""
+        <div className="mt-4 space-y-4">
+          <form action={addAssistantCoachAction} className="flex flex-wrap items-end gap-2">
+            <input name="teamId" type="hidden" value={teamId} />
+            <label className="flex min-w-[14rem] flex-1 flex-col gap-1 text-xs text-slate-600">
+              <span>Add assistant</span>
+              <select
+                name="coachId"
+                className="rounded border border-slate-300 px-2 py-2 text-sm text-slate-900"
+                defaultValue=""
+              >
+                <option value="">No assistant</option>
+                {coachChoices.map((c) => (
+                  <option key={c.id} value={c.id}>
+                    {formatCoachPickerLabel(c)}
+                  </option>
+                ))}
+              </select>
+            </label>
+            <button
+              type="submit"
+              className="rounded bg-slate-900 px-3 py-2 text-sm font-medium text-white"
             >
-              <option value="" disabled>
-                Select coach…
-              </option>
-              {coachChoices.map((c) => (
-                <option key={c.id} value={c.id}>
-                  {formatCoachPickerLabel(c)}
-                </option>
-              ))}
-            </select>
-          </label>
-          <button
-            type="submit"
-            className="rounded bg-slate-900 px-3 py-2 text-sm font-medium text-white"
-          >
-            Assign assistant
-          </button>
-        </form>
+              Assign assistant
+            </button>
+          </form>
+
+          <form action={removeAssistantCoachAction} className="flex flex-wrap items-end gap-2 border-t border-slate-100 pt-4">
+            <input name="teamId" type="hidden" value={teamId} />
+            <label className="flex min-w-[14rem] flex-1 flex-col gap-1 text-xs text-slate-600">
+              <span>Remove assistant</span>
+              <select
+                name="teamCoachId"
+                className="rounded border border-slate-300 px-2 py-2 text-sm text-slate-900"
+                defaultValue=""
+              >
+                <option value="">No assistant</option>
+                {assistants.map((a) => (
+                  <option key={a.id} value={a.id}>
+                    {a.coach.lastName}, {a.coach.firstName}
+                  </option>
+                ))}
+              </select>
+            </label>
+            <button
+              type="submit"
+              className="rounded border border-slate-300 bg-white px-3 py-2 text-sm font-medium text-slate-900 hover:bg-slate-50"
+            >
+              Remove selected
+            </button>
+          </form>
+        </div>
       ) : (
         <p className="mt-3 text-xs text-slate-500">
           Only staff authorized for this team can assign assistants.

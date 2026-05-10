@@ -154,7 +154,9 @@ function PlacementRowActions(props: {
   if (row.status === TeamPlayerPlacementStatus.INVITED && canTransitionPipeline) {
     return (
       <div className="flex flex-wrap gap-1">
-        {row.placementType === TeamPlayerPlacementType.PRIMARY ? (
+        {row.placementType === TeamPlayerPlacementType.PRIMARY ||
+        row.placementType === TeamPlayerPlacementType.SECONDARY ||
+        row.placementType === TeamPlayerPlacementType.GUEST ? (
           <form action={returnPrimaryInviteToPoolFormAction}>
             <input name="placementId" type="hidden" value={row.id} />
             <input name="teamId" type="hidden" value={teamId} />

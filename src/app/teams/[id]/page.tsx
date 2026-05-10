@@ -92,8 +92,8 @@ export default async function TeamDetailPage({ params, searchParams }: SearchPro
       )}
       {returnedToPool && (
         <div className="rounded border border-sky-200 bg-sky-50 px-3 py-2 text-sm text-sky-950">
-          Player returned to the pool — assignment cleared and lifecycle updated when they had only an invited
-          placement here.
+          Invitation withdrawn for this squad — primary players are unassigned and back in the club pool where
+          applicable; secondary/guest rows end here without changing their primary assignment.
         </div>
       )}
       {error && (

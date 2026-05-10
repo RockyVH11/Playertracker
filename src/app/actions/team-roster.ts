@@ -175,7 +175,11 @@ export async function transitionTeamPlacementAction(formData: FormData): Promise
   return { ok: true };
 }
 
-/** Unassign + terminal primary placement — only valid for PRIMARY + INVITED while assigned to this team. */
+/**
+ * Return an INVITED placement to “pool” semantics for this team:
+ * - PRIMARY: clear assignment when it matches this team; terminal primary placement via sync helper.
+ * - SECONDARY/GUEST: end this placement only (NOT_INTERESTED); does not change `assignedTeamId`.
+ */
 export async function returnPrimaryInviteToPoolAction(
   formData: FormData
 ): Promise<TeamRosterActionResult> {
@@ -202,14 +206,18 @@ export async function returnPrimaryInviteToPoolAction(
   });
   if (!placement) return { ok: false, error: "Placement not found." };
 
-  if (placement.placementType !== TeamPlayerPlacementType.PRIMARY) {
-    return { ok: false, error: "Only primary placements can return to the pool from here." };
-  }
   if (placement.status !== TeamPlayerPlacementStatus.INVITED) {
     return {
       ok: false,
       error: "Only players still at Invited can return to the pool (offer/commit first if applicable).",
     };
+  }
+
+  const allowedSecondaryGuest =
+    placement.placementType === TeamPlayerPlacementType.SECONDARY ||
+    placement.placementType === TeamPlayerPlacementType.GUEST;
+  if (placement.placementType !== TeamPlayerPlacementType.PRIMARY && !allowedSecondaryGuest) {
+    return { ok: false, error: "This placement type cannot use return to pool from here." };
   }
 
   const { staffRole, primaryLocationId } = await viewerStaffContext(session);
@@ -232,6 +240,16 @@ export async function returnPrimaryInviteToPoolAction(
     if (!directorOk && !(await coachIsOnTeam(session.coachId, placement.teamId))) {
       return { ok: false, error: "Not authorized for this team." };
     }
+  }
+
+  if (allowedSecondaryGuest) {
+    await prisma.teamPlayerPlacement.update({
+      where: { id: placement.id },
+      data: { status: TeamPlayerPlacementStatus.NOT_INTERESTED },
+    });
+    await syncPlayerLifecycleFromPlacements(placement.playerId);
+    revalidateAfterRosterMutation([placement.teamId]);
+    return { ok: true };
   }
 
   const player = await prisma.player.findFirst({

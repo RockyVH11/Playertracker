@@ -1,5 +1,7 @@
 import { z } from "zod";
-import { TeamPlayerPlacementStatus } from "@prisma/client";
+
+/** String literals keep this module free of Prisma init in Vitest workers. */
+const transitionNextPlacementStatuses = ["OFFERED", "COMMITTED", "NOT_INTERESTED"] as const;
 
 export const teamRosterTeamPlayerSchema = z
   .object({
@@ -28,21 +30,29 @@ export const returnPrimaryInviteToPoolSchema = z
   })
   .strict();
 
+const blankToUndefined = (v: unknown) =>
+  v === "" || v === null || v === undefined ? undefined : v;
+
+/** Add assistant — omit or empty `coachId` means no-op. */
 export const addTeamAssistantCoachSchema = z
   .object({
     teamId: z.string().cuid(),
-    coachId: z.string().cuid(),
+    coachId: z.preprocess(blankToUndefined, z.string().cuid().optional()),
+  })
+  .strict();
+
+/** Remove one assistant membership — omit or empty `teamCoachId` means no-op. */
+export const removeTeamAssistantCoachSchema = z
+  .object({
+    teamId: z.string().cuid(),
+    teamCoachId: z.preprocess(blankToUndefined, z.string().cuid().optional()),
   })
   .strict();
 
 export const transitionPlacementSchema = z
   .object({
     placementId: z.string().cuid(),
-    nextStatus: z.union([
-      z.literal(TeamPlayerPlacementStatus.OFFERED),
-      z.literal(TeamPlayerPlacementStatus.COMMITTED),
-      z.literal(TeamPlayerPlacementStatus.NOT_INTERESTED),
-    ]),
+    nextStatus: z.enum(transitionNextPlacementStatuses),
   })
   .strict();
 
