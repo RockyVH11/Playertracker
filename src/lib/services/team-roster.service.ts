@@ -132,8 +132,8 @@ export async function getTeamRosterSummary(teamId: string): Promise<TeamRosterSu
 }
 
 /**
- * Active pipeline rows for the team page (excludes `NOT_INTERESTED`, which remains in the DB for
- * history and pool re-add semantics but should not show as a blank “ghost” row after Return to pool).
+ * Active pipeline rows for the team page. Hides explicit coach **Decline** outcomes (`NOT_INTERESTED`).
+ * Returning to pool removes rows by deletion instead of setting that status.
  */
 export async function listTeamPlacementsForTeam(teamId: string) {
   return prisma.teamPlayerPlacement.findMany({

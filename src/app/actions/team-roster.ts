@@ -176,9 +176,9 @@ export async function transitionTeamPlacementAction(formData: FormData): Promise
 }
 
 /**
- * Return an INVITED placement to “pool” semantics for this team:
- * - PRIMARY: clear assignment when it matches this team; terminal primary placement via sync helper.
- * - SECONDARY/GUEST: end this placement only (NOT_INTERESTED); does not change `assignedTeamId`.
+ * Return an INVITED placement toward pool semantics without using NOT_INTERESTED (Decline owns that status):
+ * - PRIMARY: clear assignment; primary placement row is deleted via assignment sync unless already Declined.
+ * - SECONDARY/GUEST: delete this placement row; does not change `assignedTeamId`.
  */
 export async function returnPrimaryInviteToPoolAction(
   formData: FormData
@@ -243,10 +243,7 @@ export async function returnPrimaryInviteToPoolAction(
   }
 
   if (allowedSecondaryGuest) {
-    await prisma.teamPlayerPlacement.update({
-      where: { id: placement.id },
-      data: { status: TeamPlayerPlacementStatus.NOT_INTERESTED },
-    });
+    await prisma.teamPlayerPlacement.delete({ where: { id: placement.id } });
     await syncPlayerLifecycleFromPlacements(placement.playerId);
     revalidateAfterRosterMutation([placement.teamId]);
     return { ok: true };

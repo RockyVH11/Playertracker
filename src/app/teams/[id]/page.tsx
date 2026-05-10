@@ -107,8 +107,8 @@ export default async function TeamDetailPage({ params, searchParams }: SearchPro
       )}
       {returnedToPool && (
         <div className="rounded border border-sky-200 bg-sky-50 px-3 py-2 text-sm text-sky-950">
-          Invitation withdrawn for this squad — primary players are unassigned and back in the club pool where
-          applicable; secondary/guest rows end here without changing their primary assignment.
+          Player returned to the pool for this squad — roster rows are cleared (not marked &quot;not interested&quot;;
+          lifecycle goes back toward available when they have no other active placements).
         </div>
       )}
       {error && (

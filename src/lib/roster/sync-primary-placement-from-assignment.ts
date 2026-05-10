@@ -40,6 +40,10 @@ export async function syncPrimaryPlacementFromAssignedTeamChange(input: {
   await syncPlayerLifecycleFromPlacements(playerId);
 }
 
+/**
+ * Clearing assignment / switching teams removes the PRIMARY row so the athlete is back in pool space.
+ * Rows already marked NOT_INTERESTED (coach Decline) are kept for audit — only Decline sets that status.
+ */
 async function terminalPrimaryPlacementForTeam(playerId: string, teamId: string) {
   const row = await prisma.teamPlayerPlacement.findUnique({
     where: {
@@ -50,10 +54,7 @@ async function terminalPrimaryPlacementForTeam(playerId: string, teamId: string)
   if (row.placementType !== TeamPlayerPlacementType.PRIMARY) return;
   if (row.status === TeamPlayerPlacementStatus.NOT_INTERESTED) return;
 
-  await prisma.teamPlayerPlacement.update({
-    where: { id: row.id },
-    data: { status: TeamPlayerPlacementStatus.NOT_INTERESTED },
-  });
+  await prisma.teamPlayerPlacement.delete({ where: { id: row.id } });
 }
 
 async function upsertInvitedPrimaryPlacement(playerId: string, teamId: string) {
