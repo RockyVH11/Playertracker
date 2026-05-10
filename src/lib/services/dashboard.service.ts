@@ -3,7 +3,7 @@ import {
   type EvaluationLevel,
   type Gender,
   type PlayerPosition,
-  type PlayerStatus,
+  PlayerStatus,
 } from "@prisma/client";
 import { listPlayers, type PlayerListRow } from "@/lib/services/players.service";
 import type { SessionPayload } from "@/lib/auth/types";

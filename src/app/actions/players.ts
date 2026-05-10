@@ -25,6 +25,7 @@ import { StaffRole } from "@prisma/client";
 import { isCoachSession } from "@/lib/auth/types";
 import { canAssignPlayerToTeam, canUnassignPlayer } from "@/lib/rbac-team-building";
 import { teamBuildingCommitSchema, teamBuildingUnassignSchema } from "@/lib/validation/team-building";
+import { syncPrimaryPlacementFromAssignedTeamChange } from "@/lib/roster/sync-primary-placement-from-assignment";
 
 function parseNullableId(s: string | null) {
   if (!s || s.length === 0) return null;
@@ -324,10 +325,16 @@ export async function commitDraftPlayerAction(formData: FormData): Promise<TeamB
     where: { id: player.id },
     data: { assignedTeamId: team.id },
   });
+  await syncPrimaryPlacementFromAssignedTeamChange({
+    playerId: player.id,
+    fromAssignedTeamId: player.assignedTeamId,
+    toAssignedTeamId: team.id,
+  });
   await auditLog(viewer.session, "Player", player.id, "assign", { teamId: team.id, source: "team_building" });
   revalidatePath("/dashboard/team-building");
   revalidatePath("/dashboard");
   revalidatePath("/players");
+  revalidatePath(`/teams/${team.id}`);
   return { ok: true };
 }
 
@@ -368,10 +375,17 @@ export async function unassignDraftPlayerAction(formData: FormData): Promise<Tea
     return { ok: false, error: "Not authorized to unassign this player." };
   }
 
+  const previousTeamId = player.assignedTeamId;
   await prisma.player.update({ where: { id: player.id }, data: { assignedTeamId: null } });
+  await syncPrimaryPlacementFromAssignedTeamChange({
+    playerId: player.id,
+    fromAssignedTeamId: previousTeamId,
+    toAssignedTeamId: null,
+  });
   await auditLog(viewer.session, "Player", player.id, "unassign", { source: "team_building" });
   revalidatePath("/dashboard/team-building");
   revalidatePath("/dashboard");
   revalidatePath("/players");
+  if (previousTeamId) revalidatePath(`/teams/${previousTeamId}`);
   return { ok: true };
 }

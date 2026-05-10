@@ -13,6 +13,9 @@ const { mockGetSession, mockAuditLog, mockRevalidatePath, mockPrisma } = vi.hois
 
 vi.mock("@/lib/auth/session", () => ({ getSession: mockGetSession }));
 vi.mock("@/lib/prisma", () => ({ prisma: mockPrisma }));
+vi.mock("@/lib/roster/sync-primary-placement-from-assignment", () => ({
+  syncPrimaryPlacementFromAssignedTeamChange: vi.fn().mockResolvedValue(undefined),
+}));
 vi.mock("@/lib/audit-log", () => ({ auditLog: mockAuditLog }));
 vi.mock("next/cache", () => ({ revalidatePath: mockRevalidatePath }));
 vi.mock("next/navigation", () => ({ redirect: vi.fn() }));

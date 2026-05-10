@@ -137,7 +137,9 @@ export default async function TeamBuildingPage({ searchParams }: Props) {
       <div>
         <h1 className="text-2xl font-semibold text-slate-900">Team Building Dashboard</h1>
         <p className="text-sm text-slate-600">
-          Build a draft roster, then commit unassigned players to the selected team.
+          Build a draft roster, then commit unassigned players to the selected team. You can also open a
+          team&apos;s page and use <strong>Add to roster</strong> in the available pool (same outcome:
+          assigned + INVITED placement).
         </p>
       </div>
 

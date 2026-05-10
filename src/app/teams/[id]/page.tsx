@@ -11,8 +11,15 @@ import { canDeleteTeamOwnedByCoach } from "@/lib/rbac";
 import { Gender } from "@prisma/client";
 import { AgeGroupSelect } from "@/components/form/age-group-select";
 import { needFieldClass, needGkClass } from "@/lib/ui/need-count-style";
-import { listPlayers } from "@/lib/services/players.service";
-import { TeamRosterSection } from "@/components/teams/team-roster-section";
+import { coachIsOnTeam } from "@/lib/roster/my-team-rbac";
+import { resolveTeamRosterPagePermissions } from "@/lib/roster/team-roster-page-permissions";
+import {
+  getTeamRosterSummary,
+  listEligiblePoolPlayersForTeam,
+  listTeamPlacementsForTeam,
+} from "@/lib/services/team-roster.service";
+import { TeamRosterPipelineSection } from "@/components/teams/team-roster-pipeline-section";
+import { TeamRosterPoolSection } from "@/components/teams/team-roster-pool-section";
 import { dashboardHref } from "@/lib/dashboard/dashboard-query-params";
 
 type SearchProps = {
@@ -24,18 +31,28 @@ export default async function TeamDetailPage({ params, searchParams }: SearchPro
   const { id } = await params;
   const sp = await searchParams;
   const error = typeof sp.error === "string" ? sp.error : null;
+  const rosterAdded = sp.rosterAdded === "1";
   const session = await getSession();
   if (!session) redirect("/login");
   const team = await getTeamById(id);
   if (!team) notFound();
   const isAdmin = session.role === "SUPER_ADMIN";
-  const isTeamCoach =
-    isCoachSession(session) && team.coach.id === session.coachId;
-  const rosterPlayers = await listPlayers(session, {
-    seasonLabel: team.seasonLabel,
-    assignedTeamId: team.id,
-    assignment: "assigned",
-  });
+  const legacyHeadCoachMatch =
+    isCoachSession(session) && session.coachId === team.coach.id;
+  const listedOnTeamCoach =
+    isCoachSession(session) && (await coachIsOnTeam(session.coachId, team.id));
+  const canEditCoachEstimateFields = isAdmin || legacyHeadCoachMatch || listedOnTeamCoach;
+
+  const placements = await listTeamPlacementsForTeam(team.id);
+  const [rosterSummary, rosterPermissionsResolved, poolPlayers] = await Promise.all([
+    getTeamRosterSummary(team.id),
+    resolveTeamRosterPagePermissions(
+      session,
+      { id: team.id, coachId: team.coach.id, locationId: team.location.id },
+      placements.map((p) => ({ id: p.id, status: p.status, playerId: p.playerId }))
+    ),
+    listEligiblePoolPlayersForTeam(session, team.id, team.seasonLabel),
+  ]);
   const rosterDashboardHref = dashboardHref({
     seasonLabel: team.seasonLabel,
     teamId: team.id,
@@ -55,6 +72,11 @@ export default async function TeamDetailPage({ params, searchParams }: SearchPro
           </Link>
         </p>
       </div>
+      {rosterAdded && (
+        <div className="rounded border border-emerald-200 bg-emerald-50 px-3 py-2 text-sm text-emerald-900">
+          Player added to roster — they appear in the pipeline as INVITED.
+        </div>
+      )}
       {error && (
         <div className="rounded border border-amber-300 bg-amber-50 px-3 py-2 text-sm text-amber-900">
           {error}
@@ -123,14 +145,22 @@ export default async function TeamDetailPage({ params, searchParams }: SearchPro
         )}
       </div>
 
-      <TeamRosterSection
-        players={rosterPlayers}
+      <TeamRosterPipelineSection
         teamHeaderLine={teamHeaderLineForCopy}
         copySeasonLabel={team.seasonLabel}
+        summary={rosterSummary}
+        placements={placements}
+        permissions={rosterPermissionsResolved}
+      />
+
+      <TeamRosterPoolSection
+        teamId={team.id}
+        poolPlayers={poolPlayers}
+        canAddFromPool={rosterPermissionsResolved.canAddPlayersFromPool}
       />
 
       {isAdmin && <AdminEditForm team={team} />}
-      {isTeamCoach && !isAdmin && (
+      {canEditCoachEstimateFields && !isAdmin && (
         <form
           action={updateTeamCoachAction}
           className="max-w-xl space-y-4 rounded border border-slate-200 bg-white p-4"
@@ -169,7 +199,7 @@ export default async function TeamDetailPage({ params, searchParams }: SearchPro
           </div>
         </form>
       )}
-      {!isTeamCoach && !isAdmin && isCoachSession(session) && (
+      {!canEditCoachEstimateFields && !isAdmin && isCoachSession(session) && (
         <p className="text-sm text-slate-600">
           You can view this team. Only the listed coach (or a super admin) can edit
           coach estimates or recruiting notes.

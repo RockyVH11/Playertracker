@@ -62,6 +62,12 @@ export default async function PlayersPage({ searchParams }: Props) {
           <h1 className="text-2xl font-semibold text-slate-900">Players</h1>
           <p className="text-sm text-slate-600">
             Season <span className="font-medium">{defaultSeason}</span>
+            {" · "}
+            To pull someone onto a squad from the pool, open their{" "}
+            <Link className="font-medium text-slate-800 underline underline-offset-2" href="/teams">
+              team
+            </Link>{" "}
+            and use <strong>Add to roster</strong>.
           </p>
         </div>
         <Link

@@ -2,7 +2,7 @@ import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
 import { getSession } from "@/lib/auth/session";
 import { getPlayerById } from "@/lib/services/players.service";
-import { canDeletePlayer, canEditPlayer } from "@/lib/rbac";
+import { canDeletePlayer, canEditPlayer, getCoachTeamIdSet } from "@/lib/rbac";
 import { getLeagues, getLocations, getTeamsForSelect } from "@/lib/data/reference";
 import { updatePlayerAction, deletePlayerAction } from "@/app/actions/players";
 import { toYmdUtc } from "@/lib/ui/date";
@@ -31,12 +31,14 @@ export default async function PlayerProfilePage({ params }: Props) {
   const p = await getPlayerById(session, id);
   if (!p) notFound();
 
+  const coachTeamIds = await getCoachTeamIdSet(session);
   const playerAcl = {
     createdByCoachId: p.createdByCoach?.id ?? null,
     assignedTeam: p.assignedTeam ? { coachId: p.assignedTeam.coachId } : null,
+    assignedTeamId: p.assignedTeamId,
   };
-  const canEdit = canEditPlayer(session, playerAcl);
-  const showDelete = canDeletePlayer(session, playerAcl);
+  const canEdit = canEditPlayer(session, playerAcl, coachTeamIds);
+  const showDelete = canDeletePlayer(session, playerAcl, coachTeamIds);
   const showContact = p.contact != null;
 
   const [locations, leagues, teams] = await Promise.all([

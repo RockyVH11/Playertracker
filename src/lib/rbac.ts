@@ -3,36 +3,59 @@ import type { SessionPayload } from "@/lib/auth/types";
 import { isCoachSession } from "@/lib/auth/types";
 import { prisma } from "@/lib/prisma";
 
-type PlayerForEdit = {
+export type PlayerForEdit = {
   createdByCoachId: string | null;
+  /** Legacy primary coach on Team — kept during TeamCoach rollout */
   assignedTeam: { coachId: string } | null;
+  /** When set, coaches in `TeamCoach` for this team id may view/edit like legacy head coach */
+  assignedTeamId?: string | null;
 };
+
+function coachHasTeamCoachMembership(
+  session: SessionPayload,
+  row: PlayerForEdit,
+  coachTeamIds?: Set<string>
+): boolean {
+  return !!(
+    row.assignedTeamId &&
+    coachTeamIds?.size &&
+    coachTeamIds.has(row.assignedTeamId)
+  );
+}
 
 export function canViewPlayerContact(
   session: SessionPayload,
-  row: { createdByCoachId: string | null; assignedTeam: { coachId: string } | null }
+  row: PlayerForEdit,
+  coachTeamIds?: Set<string>
 ): boolean {
   if (session.role === "SUPER_ADMIN") return true;
   if (!isCoachSession(session)) return false;
   if (row.createdByCoachId === session.coachId) return true;
   if (row.assignedTeam?.coachId === session.coachId) return true;
+  if (coachHasTeamCoachMembership(session, row, coachTeamIds)) return true;
   return false;
 }
 
 export function canEditPlayer(
   session: SessionPayload,
-  row: PlayerForEdit
+  row: PlayerForEdit,
+  coachTeamIds?: Set<string>
 ): boolean {
   if (session.role === "SUPER_ADMIN") return true;
   if (!isCoachSession(session)) return false;
   if (row.createdByCoachId === session.coachId) return true;
   if (row.assignedTeam?.coachId === session.coachId) return true;
+  if (coachHasTeamCoachMembership(session, row, coachTeamIds)) return true;
   return false;
 }
 
 /** Same gate as editing: creator coach, assigned team's coach, or super admin — keeps seed/demo removable without extra roles. */
-export function canDeletePlayer(session: SessionPayload, row: PlayerForEdit): boolean {
-  return canEditPlayer(session, row);
+export function canDeletePlayer(
+  session: SessionPayload,
+  row: PlayerForEdit,
+  coachTeamIds?: Set<string>
+): boolean {
+  return canEditPlayer(session, row, coachTeamIds);
 }
 
 export function canDeleteTeamOwnedByCoach(session: SessionPayload, teamCoachId: string): boolean {
@@ -76,6 +99,18 @@ export async function assertCoachActive(coachId: string) {
   if (!coach) {
     throw new Error("Invalid coach");
   }
+}
+
+/** Team ids where this coach is listed on `TeamCoach` (assistant / head / manager). */
+export async function getCoachTeamIdSet(
+  session: SessionPayload
+): Promise<Set<string> | undefined> {
+  if (session.role === "SUPER_ADMIN" || !isCoachSession(session)) return undefined;
+  const rows = await prisma.teamCoach.findMany({
+    where: { coachId: session.coachId },
+    select: { teamId: true },
+  });
+  return new Set(rows.map((r) => r.teamId));
 }
 
 export function canAccessProspectDashboard(

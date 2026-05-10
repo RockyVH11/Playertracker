@@ -53,6 +53,34 @@ describe("edit player", () => {
       )
     ).toBe(false);
   });
+
+  it("allows assistant coach via TeamCoach membership on assigned team", () => {
+    expect(
+      canEditPlayer(
+        { role: "COACH", coachId: "assistant" },
+        {
+          createdByCoachId: null,
+          assignedTeam: { coachId: "head" },
+          assignedTeamId: "team-a",
+        },
+        new Set(["team-a"])
+      )
+    ).toBe(true);
+  });
+
+  it("denies assistant when TeamCoach set does not include assigned team", () => {
+    expect(
+      canEditPlayer(
+        { role: "COACH", coachId: "assistant" },
+        {
+          createdByCoachId: null,
+          assignedTeam: { coachId: "head" },
+          assignedTeamId: "team-a",
+        },
+        new Set(["team-other"])
+      )
+    ).toBe(false);
+  });
 });
 
 describe("delete helpers", () => {

@@ -27,12 +27,36 @@ enum EvaluationLevel {
   NOT_EVALUATED
 }
 
+/// Player lifecycle only — recruiting pipeline is `TeamPlayerPlacement`.
 enum PlayerStatus {
   AVAILABLE
+  ACTIVE
+  ARCHIVED
+}
+
+enum TeamCoachRole {
+  HEAD_COACH
+  ASSISTANT_COACH
+  MANAGER
+}
+
+enum TeamPlayerPlacementType {
+  PRIMARY
+  SECONDARY
+  GUEST
+}
+
+enum TeamPlayerPlacementStatus {
   INVITED
+  OFFERED
   COMMITTED
   NOT_INTERESTED
-  ARCHIVED
+  SECONDARY_REQUESTED
+  SECONDARY_APPROVED
+  SECONDARY_DENIED
+  GUEST_REQUESTED
+  GUEST_APPROVED
+  GUEST_DENIED
 }
 
 enum PlayerPosition {
@@ -144,6 +168,11 @@ model Coach {
 
   fieldRequestsSubmitted    FieldRequest[]          @relation("FieldRequestSubmittedByCoach")
   equipmentReservationsMade EquipmentReservation[]  @relation("EquipmentReservedByCoach")
+
+  teamCoachMemberships       TeamCoach[]
+  placementsRequested       TeamPlayerPlacement[]    @relation("TeamPlayerPlacementRequestedBy")
+  placementsApprovedCoach   TeamPlayerPlacement[]    @relation("TeamPlayerPlacementApprovedByCoach")
+  placementsApprovedDirector TeamPlayerPlacement[]   @relation("TeamPlayerPlacementApprovedByDirector")
 }
 
 /// Training complex within a Location (e.g. "Boneyard" at Midland).
@@ -391,7 +420,50 @@ model Team {
   fieldAssignments        FieldAssignment[]
   equipmentReservations   EquipmentReservation[]
 
+  teamCoaches       TeamCoach[]
+  playerPlacements  TeamPlayerPlacement[]
+
   @@index([seasonLabel, locationId, gender, ageGroup, leagueId, openSession])
+}
+
+/// Many coaches per team; backfilled from `Team.coachId` as HEAD_COACH during rollout.
+model TeamCoach {
+  id        String        @id @default(cuid())
+  teamId    String
+  team      Team          @relation(fields: [teamId], references: [id], onDelete: Cascade)
+  coachId   String
+  coach     Coach         @relation(fields: [coachId], references: [id], onDelete: Restrict)
+  role      TeamCoachRole
+  createdAt DateTime      @default(now())
+  updatedAt DateTime      @updatedAt
+
+  @@unique([teamId, coachId])
+  @@index([coachId])
+  @@index([teamId])
+}
+
+/// Team-scoped recruiting / roster pipeline — one row per (player, team).
+model TeamPlayerPlacement {
+  id                   String                     @id @default(cuid())
+  playerId             String
+  player               Player                     @relation(fields: [playerId], references: [id], onDelete: Restrict)
+  teamId               String
+  team                 Team                       @relation(fields: [teamId], references: [id], onDelete: Restrict)
+  status               TeamPlayerPlacementStatus
+  placementType        TeamPlayerPlacementType
+  requestedByCoachId   String?
+  requestedByCoach     Coach?                     @relation("TeamPlayerPlacementRequestedBy", fields: [requestedByCoachId], references: [id], onDelete: SetNull)
+  approvedByCoachId    String?
+  approvedByCoach      Coach?                     @relation("TeamPlayerPlacementApprovedByCoach", fields: [approvedByCoachId], references: [id], onDelete: SetNull)
+  approvedByDirectorId String?
+  approvedByDirector   Coach?                     @relation("TeamPlayerPlacementApprovedByDirector", fields: [approvedByDirectorId], references: [id], onDelete: SetNull)
+  notes                String?
+  createdAt            DateTime                   @default(now())
+  updatedAt            DateTime                   @updatedAt
+
+  @@unique([playerId, teamId])
+  @@index([teamId, status])
+  @@index([playerId])
 }
 
 model AgeGroupRule {
@@ -460,6 +532,8 @@ model Player {
   contact   PlayerContact?
   createdAt DateTime       @default(now())
   updatedAt DateTime       @updatedAt
+
+  teamPlacements TeamPlayerPlacement[]
 
   @@index([gender, seasonLabel, derivedAgeGroup, overrideAgeGroup, locationId, playerStatus, evaluationLevel, assignedTeamId, primaryPosition])
   @@index([seasonLabel, firstName, lastName, dob, gender])

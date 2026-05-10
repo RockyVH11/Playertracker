@@ -7,7 +7,9 @@ import {
   type PlayerSource,
   type PlayerStatus,
 } from "@prisma/client";
+import { revalidatePath } from "next/cache";
 import { prisma } from "@/lib/prisma";
+import { syncPrimaryPlacementFromAssignedTeamChange } from "@/lib/roster/sync-primary-placement-from-assignment";
 import { deriveAgeGroupForDob } from "@/lib/age-group";
 import { normName } from "@/lib/strings";
 import type { SessionPayload } from "@/lib/auth/types";
@@ -17,6 +19,7 @@ import {
   canEditPlayer,
   canCreatePlayer,
   canDeletePlayer,
+  getCoachTeamIdSet,
 } from "@/lib/rbac";
 
 const playerListSelect = {
@@ -108,14 +111,20 @@ function mapRow(
     guardianName: string | null;
     guardianPhone: string | null;
     guardianEmail: string | null;
-  } | null
+  } | null,
+  coachTeamIds?: Set<string>
 ): PlayerListRow {
-  const showContact = canViewPlayerContact(session, {
-    createdByCoachId: row.createdByCoachId,
-    assignedTeam: row.assignedTeam
-      ? { coachId: row.assignedTeam.coachId }
-      : null,
-  });
+  const showContact = canViewPlayerContact(
+    session,
+    {
+      createdByCoachId: row.createdByCoachId,
+      assignedTeam: row.assignedTeam
+        ? { coachId: row.assignedTeam.coachId }
+        : null,
+      assignedTeamId: row.assignedTeamId,
+    },
+    coachTeamIds
+  );
   return {
     id: row.id,
     seasonLabel: row.seasonLabel,
@@ -241,6 +250,8 @@ export async function listPlayers(
           },
         }
       : {};
+  const coachTeamIds = await getCoachTeamIdSet(session);
+
   const q = input.q?.trim();
   const rows = await prisma.player.findMany({
     where: {
@@ -275,12 +286,17 @@ export async function listPlayers(
   const ids: string[] = [];
   for (const r of rows) {
     if (
-      canViewPlayerContact(session, {
-        createdByCoachId: r.createdByCoachId,
-        assignedTeam: r.assignedTeam
-          ? { coachId: r.assignedTeam.coachId }
-          : null,
-      })
+      canViewPlayerContact(
+        session,
+        {
+          createdByCoachId: r.createdByCoachId,
+          assignedTeam: r.assignedTeam
+            ? { coachId: r.assignedTeam.coachId }
+            : null,
+          assignedTeamId: r.assignedTeamId,
+        },
+        coachTeamIds
+      )
     ) {
       ids.push(r.id);
     }
@@ -302,7 +318,8 @@ export async function listPlayers(
             guardianPhone: c.guardianPhone,
             guardianEmail: c.guardianEmail,
           }
-        : null
+        : null,
+      coachTeamIds
     );
   });
 }
@@ -311,17 +328,23 @@ export async function getPlayerById(
   session: SessionPayload,
   id: string
 ): Promise<PlayerListRow | null> {
+  const coachTeamIds = await getCoachTeamIdSet(session);
   const row = await prisma.player.findFirst({
     where: { id },
     select: playerListSelect,
   });
   if (!row) return null;
-  const allowContact = canViewPlayerContact(session, {
-    createdByCoachId: row.createdByCoachId,
-    assignedTeam: row.assignedTeam
-      ? { coachId: row.assignedTeam.coachId }
-      : null,
-  });
+  const allowContact = canViewPlayerContact(
+    session,
+    {
+      createdByCoachId: row.createdByCoachId,
+      assignedTeam: row.assignedTeam
+        ? { coachId: row.assignedTeam.coachId }
+        : null,
+      assignedTeamId: row.assignedTeamId,
+    },
+    coachTeamIds
+  );
   const contact = allowContact
     ? await prisma.playerContact.findUnique({ where: { playerId: id } })
     : null;
@@ -334,7 +357,8 @@ export async function getPlayerById(
           guardianPhone: contact.guardianPhone,
           guardianEmail: contact.guardianEmail,
         }
-      : null
+      : null,
+    coachTeamIds
   );
 }
 
@@ -424,6 +448,14 @@ export async function createPlayer(input: {
       },
     });
   }
+  if (input.data.assignedTeamId) {
+    await syncPrimaryPlacementFromAssignedTeamChange({
+      playerId: created.id,
+      fromAssignedTeamId: null,
+      toAssignedTeamId: input.data.assignedTeamId,
+    });
+    revalidatePath(`/teams/${input.data.assignedTeamId}`);
+  }
   return {
     id: created.id,
     duplicateWarning: dupes.length > 0,
@@ -465,13 +497,31 @@ export async function updatePlayer(input: {
   if (!existing) {
     throw new Error("Player not found");
   }
-  if (!canEditPlayer(input.session, { ...existing, assignedTeam: existing.assignedTeam })) {
+  const coachTeamIds = await getCoachTeamIdSet(input.session);
+  if (
+    !canEditPlayer(
+      input.session,
+      {
+        ...existing,
+        assignedTeam: existing.assignedTeam,
+        assignedTeamId: existing.assignedTeamId,
+      },
+      coachTeamIds
+    )
+  ) {
     throw new Error("Not allowed to edit this player");
   }
-  if (!canViewPlayerContact(input.session, {
-    createdByCoachId: existing.createdByCoachId,
-    assignedTeam: existing.assignedTeam,
-  })) {
+  if (
+    !canViewPlayerContact(
+      input.session,
+      {
+        createdByCoachId: existing.createdByCoachId,
+        assignedTeam: existing.assignedTeam,
+        assignedTeamId: existing.assignedTeamId,
+      },
+      coachTeamIds
+    )
+  ) {
     if (input.data.contact != null) {
       throw new Error("Cannot change contact for this player");
     }
@@ -508,11 +558,27 @@ export async function updatePlayer(input: {
         : {}),
     },
   });
+
+  if (existing.assignedTeamId !== input.data.assignedTeamId) {
+    await syncPrimaryPlacementFromAssignedTeamChange({
+      playerId: input.id,
+      fromAssignedTeamId: existing.assignedTeamId ?? null,
+      toAssignedTeamId: input.data.assignedTeamId ?? null,
+    });
+    if (existing.assignedTeamId) revalidatePath(`/teams/${existing.assignedTeamId}`);
+    if (input.data.assignedTeamId) revalidatePath(`/teams/${input.data.assignedTeamId}`);
+  }
+
   if (
-    canViewPlayerContact(input.session, {
-      createdByCoachId: existing.createdByCoachId,
-      assignedTeam: existing.assignedTeam,
-    })
+    canViewPlayerContact(
+      input.session,
+      {
+        createdByCoachId: existing.createdByCoachId,
+        assignedTeam: existing.assignedTeam,
+        assignedTeamId: existing.assignedTeamId,
+      },
+      coachTeamIds
+    )
   ) {
     if (input.data.contact) {
       await prisma.playerContact.upsert({
@@ -550,11 +616,13 @@ export async function deletePlayer(input: {
   if (!existing) {
     throw new Error("Player not found");
   }
+  const coachTeamIds = await getCoachTeamIdSet(input.session);
   const playerForAcl = {
     createdByCoachId: existing.createdByCoachId,
     assignedTeam: existing.assignedTeam ?? null,
+    assignedTeamId: existing.assignedTeamId,
   };
-  if (!canDeletePlayer(input.session, playerForAcl)) {
+  if (!canDeletePlayer(input.session, playerForAcl, coachTeamIds)) {
     throw new Error("Not allowed to delete this player");
   }
   await prisma.player.delete({ where: { id: input.id } });
