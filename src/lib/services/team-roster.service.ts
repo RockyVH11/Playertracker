@@ -131,10 +131,16 @@ export async function getTeamRosterSummary(teamId: string): Promise<TeamRosterSu
   };
 }
 
-/** Minimal placement rows for future roster UI / loaders. */
+/**
+ * Active pipeline rows for the team page (excludes `NOT_INTERESTED`, which remains in the DB for
+ * history and pool re-add semantics but should not show as a blank “ghost” row after Return to pool).
+ */
 export async function listTeamPlacementsForTeam(teamId: string) {
   return prisma.teamPlayerPlacement.findMany({
-    where: { teamId },
+    where: {
+      teamId,
+      status: { not: TeamPlayerPlacementStatus.NOT_INTERESTED },
+    },
     include: {
       player: {
         select: {
