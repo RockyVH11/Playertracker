@@ -12,6 +12,7 @@ import {
   approveSecondaryByDirectorFormAction,
   denyGuestByHeadCoachFormAction,
   denySecondaryByDirectorFormAction,
+  returnPrimaryInviteToPoolFormAction,
   transitionTeamPlacementFormAction,
 } from "@/app/actions/team-roster";
 import type { TeamRosterSummaryCounts } from "@/lib/services/team-roster.service";
@@ -39,13 +40,14 @@ type PlacementRow = {
 };
 
 export function TeamRosterPipelineSection(props: {
+  teamId: string;
   teamHeaderLine: string;
   copySeasonLabel: string;
   summary: TeamRosterSummaryCounts;
   placements: PlacementRow[];
   permissions: TeamRosterPagePermissions;
 }) {
-  const { teamHeaderLine, copySeasonLabel, summary, placements, permissions } = props;
+  const { teamId, teamHeaderLine, copySeasonLabel, summary, placements, permissions } = props;
 
   const copyIntro = `${teamHeaderLine} · Season ${copySeasonLabel} · Placement pipeline (tab-separated)`;
 
@@ -124,7 +126,11 @@ export function TeamRosterPipelineSection(props: {
                     <td className="px-2 py-2">{row.player.playerStatus}</td>
                     <td className="px-2 py-2">{row.player.primaryPosition}</td>
                     <td className="px-2 py-2">
-                      <PlacementRowActions row={row} permissions={permissions} />
+                      <PlacementRowActions
+                        teamId={teamId}
+                        row={row}
+                        permissions={permissions}
+                      />
                     </td>
                   </tr>
                 ))
@@ -138,15 +144,28 @@ export function TeamRosterPipelineSection(props: {
 }
 
 function PlacementRowActions(props: {
+  teamId: string;
   row: PlacementRow;
   permissions: TeamRosterPagePermissions;
 }) {
-  const { row, permissions } = props;
+  const { teamId, row, permissions } = props;
   const { canTransitionPipeline, canApproveSecondary, guestActionPlacementIds } = permissions;
 
   if (row.status === TeamPlayerPlacementStatus.INVITED && canTransitionPipeline) {
     return (
       <div className="flex flex-wrap gap-1">
+        {row.placementType === TeamPlayerPlacementType.PRIMARY ? (
+          <form action={returnPrimaryInviteToPoolFormAction}>
+            <input name="placementId" type="hidden" value={row.id} />
+            <input name="teamId" type="hidden" value={teamId} />
+            <button
+              className="rounded border border-amber-300 bg-amber-50 px-2 py-1 text-xs text-amber-950"
+              type="submit"
+            >
+              Return to pool
+            </button>
+          </form>
+        ) : null}
         <form action={transitionTeamPlacementFormAction}>
           <input name="placementId" type="hidden" value={row.id} />
           <input name="nextStatus" type="hidden" value={TeamPlayerPlacementStatus.OFFERED} />

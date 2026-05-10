@@ -1,7 +1,11 @@
 import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
 import { getSession } from "@/lib/auth/session";
-import { getTeamById } from "@/lib/services/teams.service";
+import {
+  getTeamById,
+  listAssistantCoachesForTeam,
+  listCoachIdsOnTeamStaff,
+} from "@/lib/services/teams.service";
 import { getCoaches, getLeagues, getLocations } from "@/lib/data/reference";
 import { formatCoachPickerLabel } from "@/lib/ui/formatters";
 import { updateTeamAction, deleteTeamAction } from "@/app/actions/teams";
@@ -18,6 +22,7 @@ import {
   listEligiblePoolPlayersForTeam,
   listTeamPlacementsForTeam,
 } from "@/lib/services/team-roster.service";
+import { TeamAssistantCoachesSection } from "@/components/teams/team-assistant-coaches-section";
 import { TeamRosterPipelineSection } from "@/components/teams/team-roster-pipeline-section";
 import { TeamRosterPoolSection } from "@/components/teams/team-roster-pool-section";
 import { dashboardHref } from "@/lib/dashboard/dashboard-query-params";
@@ -32,6 +37,7 @@ export default async function TeamDetailPage({ params, searchParams }: SearchPro
   const sp = await searchParams;
   const error = typeof sp.error === "string" ? sp.error : null;
   const rosterAdded = sp.rosterAdded === "1";
+  const returnedToPool = sp.returnedToPool === "1";
   const session = await getSession();
   if (!session) redirect("/login");
   const team = await getTeamById(id);
@@ -44,15 +50,22 @@ export default async function TeamDetailPage({ params, searchParams }: SearchPro
   const canEditCoachEstimateFields = isAdmin || legacyHeadCoachMatch || listedOnTeamCoach;
 
   const placements = await listTeamPlacementsForTeam(team.id);
-  const [rosterSummary, rosterPermissionsResolved, poolPlayers] = await Promise.all([
-    getTeamRosterSummary(team.id),
-    resolveTeamRosterPagePermissions(
-      session,
-      { id: team.id, coachId: team.coach.id, locationId: team.location.id },
-      placements.map((p) => ({ id: p.id, status: p.status, playerId: p.playerId }))
-    ),
-    listEligiblePoolPlayersForTeam(session, team.id, team.seasonLabel),
-  ]);
+  const [rosterSummary, rosterPermissionsResolved, poolPlayers, assistants, coachesAll, staffCoachIds] =
+    await Promise.all([
+      getTeamRosterSummary(team.id),
+      resolveTeamRosterPagePermissions(
+        session,
+        { id: team.id, coachId: team.coach.id, locationId: team.location.id },
+        placements.map((p) => ({ id: p.id, status: p.status, playerId: p.playerId }))
+      ),
+      listEligiblePoolPlayersForTeam(session, team.id, team.seasonLabel),
+      listAssistantCoachesForTeam(team.id),
+      getCoaches(),
+      listCoachIdsOnTeamStaff(team.id),
+    ]);
+  const staffOnTeam = new Set(staffCoachIds);
+  staffOnTeam.add(team.coach.id);
+  const assistantCoachChoices = coachesAll.filter((c) => !staffOnTeam.has(c.id));
   const rosterDashboardHref = dashboardHref({
     seasonLabel: team.seasonLabel,
     teamId: team.id,
@@ -75,6 +88,12 @@ export default async function TeamDetailPage({ params, searchParams }: SearchPro
       {rosterAdded && (
         <div className="rounded border border-emerald-200 bg-emerald-50 px-3 py-2 text-sm text-emerald-900">
           Player added to roster — they appear in the pipeline as INVITED.
+        </div>
+      )}
+      {returnedToPool && (
+        <div className="rounded border border-sky-200 bg-sky-50 px-3 py-2 text-sm text-sky-950">
+          Player returned to the pool — assignment cleared and lifecycle updated when they had only an invited
+          placement here.
         </div>
       )}
       {error && (
@@ -146,6 +165,7 @@ export default async function TeamDetailPage({ params, searchParams }: SearchPro
       </div>
 
       <TeamRosterPipelineSection
+        teamId={team.id}
         teamHeaderLine={teamHeaderLineForCopy}
         copySeasonLabel={team.seasonLabel}
         summary={rosterSummary}
@@ -157,6 +177,13 @@ export default async function TeamDetailPage({ params, searchParams }: SearchPro
         teamId={team.id}
         poolPlayers={poolPlayers}
         canAddFromPool={rosterPermissionsResolved.canAddPlayersFromPool}
+      />
+
+      <TeamAssistantCoachesSection
+        teamId={team.id}
+        assistants={assistants}
+        coachChoices={assistantCoachChoices}
+        canManage={rosterPermissionsResolved.canAddPlayersFromPool}
       />
 
       {isAdmin && <AdminEditForm team={team} />}

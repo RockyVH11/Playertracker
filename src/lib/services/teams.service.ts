@@ -1,3 +1,4 @@
+import { TeamCoachRole } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import type { SessionPayload } from "@/lib/auth/types";
 import {
@@ -363,4 +364,32 @@ export async function deleteTeam(input: { session: SessionPayload; id: string })
     });
     await tx.team.delete({ where: { id } });
   });
+}
+
+export type TeamAssistantCoachRow = {
+  id: string;
+  coach: { id: string; firstName: string; lastName: string };
+};
+
+/** Assistant coaches linked via `TeamCoach` (excludes head coach row). */
+export async function listAssistantCoachesForTeam(
+  teamId: string
+): Promise<TeamAssistantCoachRow[]> {
+  const rows = await prisma.teamCoach.findMany({
+    where: { teamId, role: TeamCoachRole.ASSISTANT_COACH },
+    include: {
+      coach: { select: { id: true, firstName: true, lastName: true } },
+    },
+    orderBy: [{ coach: { lastName: "asc" } }, { coach: { firstName: "asc" } }],
+  });
+  return rows.map((r) => ({ id: r.id, coach: r.coach }));
+}
+
+/** Every coach already on this team’s staff roster (any role), for picker exclusions. */
+export async function listCoachIdsOnTeamStaff(teamId: string): Promise<string[]> {
+  const rows = await prisma.teamCoach.findMany({
+    where: { teamId },
+    select: { coachId: true },
+  });
+  return rows.map((r) => r.coachId);
 }

@@ -21,6 +21,20 @@ export const invitePlayerSchema = teamRosterTeamPlayerSchema.extend({
 /** Assign pool player to team → `assignedTeamId` + PRIMARY INVITED placement sync */
 export const assignPlayerToTeamRosterSchema = teamRosterTeamPlayerSchema;
 
+export const returnPrimaryInviteToPoolSchema = z
+  .object({
+    placementId: z.string().cuid(),
+    teamId: z.string().cuid(),
+  })
+  .strict();
+
+export const addTeamAssistantCoachSchema = z
+  .object({
+    teamId: z.string().cuid(),
+    coachId: z.string().cuid(),
+  })
+  .strict();
+
 export const transitionPlacementSchema = z
   .object({
     placementId: z.string().cuid(),

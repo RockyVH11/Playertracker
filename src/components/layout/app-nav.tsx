@@ -86,6 +86,9 @@ export async function AppNav({ session }: { session: SessionPayload | null }) {
               Team Building Dashboard
             </Link>
           </NavDropdown>
+          <Link className="text-slate-800 hover:text-slate-950" href="/teams">
+            My Team
+          </Link>
           <NavDropdown
             label="Club"
             summaryClassName="cursor-pointer list-none text-slate-800 hover:text-slate-950 [&::-webkit-details-marker]:hidden"

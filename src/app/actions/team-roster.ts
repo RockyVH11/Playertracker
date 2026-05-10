@@ -31,6 +31,7 @@ import {
   invitePlayerSchema,
   requestGuestSchema,
   requestSecondarySchema,
+  returnPrimaryInviteToPoolSchema,
   transitionPlacementSchema,
 } from "@/lib/validation/team-roster";
 
@@ -172,6 +173,97 @@ export async function transitionTeamPlacementAction(formData: FormData): Promise
   await syncPlayerLifecycleFromPlacements(placement.playerId);
   revalidateAfterRosterMutation([placement.teamId]);
   return { ok: true };
+}
+
+/** Unassign + terminal primary placement — only valid for PRIMARY + INVITED while assigned to this team. */
+export async function returnPrimaryInviteToPoolAction(
+  formData: FormData
+): Promise<TeamRosterActionResult> {
+  const session = await getSession();
+  if (!session || (session.role !== "SUPER_ADMIN" && !isCoachSession(session))) {
+    return { ok: false, error: "Sign in as staff." };
+  }
+
+  const parsed = returnPrimaryInviteToPoolSchema.safeParse({
+    placementId: String(formData.get("placementId") ?? ""),
+    teamId: String(formData.get("teamId") ?? ""),
+  });
+  if (!parsed.success) return { ok: false, error: "Invalid request." };
+
+  const placement = await prisma.teamPlayerPlacement.findFirst({
+    where: { id: parsed.data.placementId, teamId: parsed.data.teamId },
+    select: {
+      id: true,
+      playerId: true,
+      teamId: true,
+      status: true,
+      placementType: true,
+    },
+  });
+  if (!placement) return { ok: false, error: "Placement not found." };
+
+  if (placement.placementType !== TeamPlayerPlacementType.PRIMARY) {
+    return { ok: false, error: "Only primary placements can return to the pool from here." };
+  }
+  if (placement.status !== TeamPlayerPlacementStatus.INVITED) {
+    return {
+      ok: false,
+      error: "Only players still at Invited can return to the pool (offer/commit first if applicable).",
+    };
+  }
+
+  const { staffRole, primaryLocationId } = await viewerStaffContext(session);
+  try {
+    await assertCoachCanAccessTeamForMyTeam(session, staffRole, primaryLocationId, placement.teamId);
+  } catch (e) {
+    return { ok: false, error: e instanceof Error ? e.message : "Not authorized." };
+  }
+  if (session.role !== "SUPER_ADMIN") {
+    if (!isCoachSession(session)) return { ok: false, error: "Sign in as staff." };
+    const teamRow = await prisma.team.findFirst({
+      where: { id: placement.teamId },
+      select: { locationId: true },
+    });
+    const directorOk =
+      staffRole === StaffRole.DIRECTOR &&
+      primaryLocationId != null &&
+      teamRow != null &&
+      primaryLocationId === teamRow.locationId;
+    if (!directorOk && !(await coachIsOnTeam(session.coachId, placement.teamId))) {
+      return { ok: false, error: "Not authorized for this team." };
+    }
+  }
+
+  const player = await prisma.player.findFirst({
+    where: { id: placement.playerId },
+    select: { id: true, assignedTeamId: true },
+  });
+  if (!player) return { ok: false, error: "Player not found." };
+  if (player.assignedTeamId !== placement.teamId) {
+    return { ok: false, error: "Player is not assigned to this team." };
+  }
+
+  await prisma.player.update({
+    where: { id: player.id },
+    data: { assignedTeamId: null },
+  });
+  await syncPrimaryPlacementFromAssignedTeamChange({
+    playerId: player.id,
+    fromAssignedTeamId: placement.teamId,
+    toAssignedTeamId: null,
+  });
+
+  revalidateAfterRosterMutation([placement.teamId]);
+  return { ok: true };
+}
+
+export async function returnPrimaryInviteToPoolFormAction(formData: FormData): Promise<void> {
+  const teamId = String(formData.get("teamId") ?? "");
+  const result = await returnPrimaryInviteToPoolAction(formData);
+  if (!result.ok) {
+    redirect(`/teams/${teamId}?error=${encodeURIComponent(result.error)}`);
+  }
+  redirect(`/teams/${teamId}?returnedToPool=1`);
 }
 
 export async function requestSecondaryPlacementAction(formData: FormData): Promise<TeamRosterActionResult> {
