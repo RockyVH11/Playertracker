@@ -36,6 +36,7 @@ function row(partial: Partial<PlayerListRow> & Pick<PlayerListRow, "id" | "lastN
     playerSource: partial.playerSource ?? PlayerSource.COACH_ENTERED,
     placementPriority: partial.placementPriority ?? PlacementPriority.MEDIUM,
     willingToPlayUp: partial.willingToPlayUp ?? false,
+    coachNotes: partial.coachNotes ?? null,
     evaluationLevel: partial.evaluationLevel ?? EvaluationLevel.NOT_EVALUATED,
     evaluationNotes: null,
     evaluationUpdatedAt: null,

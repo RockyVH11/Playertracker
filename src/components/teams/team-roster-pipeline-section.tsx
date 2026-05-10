@@ -1,11 +1,5 @@
 import Link from "next/link";
-import {
-  Gender,
-  PlayerPosition,
-  PlayerStatus,
-  TeamPlayerPlacementStatus,
-  TeamPlayerPlacementType,
-} from "@prisma/client";
+import { TeamPlayerPlacementStatus, TeamPlayerPlacementType } from "@prisma/client";
 import { DashboardTableCopySection } from "@/components/dashboard/dashboard-table-copy-section";
 import {
   approveGuestByHeadCoachFormAction,
@@ -16,12 +10,17 @@ import {
   returnPrimaryInviteToPoolFormAction,
   transitionTeamPlacementFormAction,
 } from "@/app/actions/team-roster";
-import type { TeamRosterSummaryCounts } from "@/lib/services/team-roster.service";
+import type {
+  TeamRosterPlacementRow,
+  TeamRosterSummaryCounts,
+} from "@/lib/services/team-roster.service";
 import type { TeamRosterPagePermissions } from "@/lib/roster/team-roster-page-permissions";
 import {
   formatPlacementStatusLabel,
   formatPlacementTypeLabel,
 } from "@/lib/roster/team-roster-display";
+import { toUsDateUtc } from "@/lib/ui/date";
+import { RosterPlayerNotesEvalExpand } from "@/components/teams/roster-player-notes-eval-expand";
 
 function pipelineRowClass(row: {
   placementType: TeamPlayerPlacementType;
@@ -35,22 +34,7 @@ function pipelineRowClass(row: {
   return "";
 }
 
-type PlacementRow = {
-  id: string;
-  status: TeamPlayerPlacementStatus;
-  placementType: TeamPlayerPlacementType;
-  notes: string | null;
-  player: {
-    id: string;
-    firstName: string;
-    lastName: string;
-    primaryPosition: PlayerPosition;
-    gender: Gender;
-    derivedAgeGroup: string;
-    overrideAgeGroup: string | null;
-    playerStatus: PlayerStatus;
-  };
-};
+type PlacementRow = TeamRosterPlacementRow;
 
 export function TeamRosterPipelineSection(props: {
   teamId: string;
@@ -62,6 +46,7 @@ export function TeamRosterPipelineSection(props: {
 }) {
   const { teamId, teamHeaderLine, copySeasonLabel, summary, placements, permissions } = props;
 
+  const canEditRosterNotes = permissions.canAddPlayersFromPool;
   const copyIntro = `${teamHeaderLine} · Season ${copySeasonLabel} · Placement pipeline (tab-separated)`;
 
   return (
@@ -111,6 +96,10 @@ export function TeamRosterPipelineSection(props: {
             <thead className="bg-slate-50 text-xs text-slate-600">
               <tr>
                 <th className="px-2 py-2">Player</th>
+                <th className="w-px whitespace-nowrap px-1 py-2 text-center" title="Coach notes / evaluation">
+                  More
+                </th>
+                <th className="px-2 py-2">DOB</th>
                 <th className="px-2 py-2">Placement</th>
                 <th className="px-2 py-2">Type</th>
                 <th className="px-2 py-2">Lifecycle</th>
@@ -121,7 +110,7 @@ export function TeamRosterPipelineSection(props: {
             <tbody>
               {placements.length === 0 ? (
                 <tr>
-                  <td className="px-2 py-6 text-slate-600" colSpan={6}>
+                  <td className="px-2 py-6 text-slate-600" colSpan={8}>
                     No placement rows yet for this team. Inviting a player from another flow creates an
                     INVITED placement here.
                   </td>
@@ -132,16 +121,29 @@ export function TeamRosterPipelineSection(props: {
                     key={row.id}
                     className={`border-t border-slate-100 align-top ${pipelineRowClass(row)}`}
                   >
-                    <td className="px-2 py-2">
+                    <td className="px-2 py-2 align-top">
                       <Link className="text-slate-900 underline-offset-4 hover:underline" href={`/players/${row.player.id}`}>
                         {row.player.lastName}, {row.player.firstName}
                       </Link>
                     </td>
-                    <td className="px-2 py-2">{formatPlacementStatusLabel(row.status)}</td>
-                    <td className="px-2 py-2">{formatPlacementTypeLabel(row.placementType)}</td>
-                    <td className="px-2 py-2">{row.player.playerStatus}</td>
-                    <td className="px-2 py-2">{row.player.primaryPosition}</td>
-                    <td className="px-2 py-2">
+                    <td className="whitespace-nowrap px-1 py-2 align-top text-center">
+                      <RosterPlayerNotesEvalExpand
+                        coachNotes={row.player.coachNotes}
+                        evaluationAuthorCoach={row.player.evaluationAuthorCoach}
+                        evaluationLevel={row.player.evaluationLevel}
+                        evaluationNotes={row.player.evaluationNotes}
+                        evaluationUpdatedAt={row.player.evaluationUpdatedAt}
+                        canEdit={canEditRosterNotes}
+                        playerId={row.player.id}
+                        teamId={teamId}
+                      />
+                    </td>
+                    <td className="whitespace-nowrap px-2 py-2 align-top">{toUsDateUtc(row.player.dob)}</td>
+                    <td className="px-2 py-2 align-top">{formatPlacementStatusLabel(row.status)}</td>
+                    <td className="px-2 py-2 align-top">{formatPlacementTypeLabel(row.placementType)}</td>
+                    <td className="px-2 py-2 align-top">{row.player.playerStatus}</td>
+                    <td className="px-2 py-2 align-top">{row.player.primaryPosition}</td>
+                    <td className="px-2 py-2 align-top">
                       <PlacementRowActions
                         teamId={teamId}
                         row={row}

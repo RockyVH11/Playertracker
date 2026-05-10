@@ -73,6 +73,7 @@ export async function intakeCreatePlayerAction(formData: FormData) {
         secondaryPosition,
         playerSource: PlayerSource.OPEN_SESSION,
         placementPriority: PlacementPriority.MEDIUM,
+        coachNotes: null,
         evaluationLevel: EvaluationLevel.NOT_EVALUATED,
         evaluationNotes: null,
         evaluationUpdatedAt: new Date(),

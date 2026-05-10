@@ -138,6 +138,8 @@ model User {
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
 
+  evaluationSnapshots PlayerEvaluationHistory[] @relation("PlayerEvaluationSnapshotAuthorUser")
+
   evaluationAuthoredPlayers Player[] @relation("PlayerEvaluationAuthorUser")
   createdPlayers            Player[] @relation("PlayerCreatedByUser")
   updatedPlayers            Player[] @relation("PlayerUpdatedByUser")
@@ -173,6 +175,8 @@ model Coach {
   placementsRequested       TeamPlayerPlacement[]    @relation("TeamPlayerPlacementRequestedBy")
   placementsApprovedCoach   TeamPlayerPlacement[]    @relation("TeamPlayerPlacementApprovedByCoach")
   placementsApprovedDirector TeamPlayerPlacement[]   @relation("TeamPlayerPlacementApprovedByDirector")
+
+  evaluationSnapshotsWritten PlayerEvaluationHistory[] @relation("PlayerEvaluationSnapshotAuthorCoach")
 }
 
 /// Training complex within a Location (e.g. "Boneyard" at Midland).
@@ -513,6 +517,8 @@ model Player {
   sourceSubmittedAt        DateTime?
   importedFromInterestForm Boolean           @default(false)
 
+  coachNotes              String?         @db.VarChar(500)
+
   evaluationLevel         EvaluationLevel @default(NOT_EVALUATED)
   evaluationNotes         String?
   evaluationAuthorCoachId String?
@@ -533,10 +539,27 @@ model Player {
   createdAt DateTime       @default(now())
   updatedAt DateTime       @updatedAt
 
-  teamPlacements TeamPlayerPlacement[]
+  teamPlacements       TeamPlayerPlacement[]
+  evaluationSnapshots PlayerEvaluationHistory[]
 
   @@index([gender, seasonLabel, derivedAgeGroup, overrideAgeGroup, locationId, playerStatus, evaluationLevel, assignedTeamId, primaryPosition])
   @@index([seasonLabel, firstName, lastName, dob, gender])
+}
+
+/// Keeps recent evaluation snapshots when staff save evaluation changes on a player (max retained per player: 5).
+model PlayerEvaluationHistory {
+  id                 String           @id @default(cuid())
+  playerId           String
+  player             Player           @relation(fields: [playerId], references: [id], onDelete: Cascade)
+  evaluationLevel    EvaluationLevel
+  evaluationNotes    String?
+  authorCoachId      String?
+  authorCoach        Coach?           @relation("PlayerEvaluationSnapshotAuthorCoach", fields: [authorCoachId], references: [id], onDelete: SetNull)
+  authorUserId       String?
+  authorUser         User?            @relation("PlayerEvaluationSnapshotAuthorUser", fields: [authorUserId], references: [id], onDelete: SetNull)
+  createdAt          DateTime         @default(now())
+
+  @@index([playerId, createdAt])
 }
 
 model PlayerContact {

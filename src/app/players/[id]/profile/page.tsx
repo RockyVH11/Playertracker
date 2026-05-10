@@ -2,6 +2,7 @@ import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
 import { getSession } from "@/lib/auth/session";
 import { getPlayerById } from "@/lib/services/players.service";
+import { listPlayerEvaluationSnapshots } from "@/lib/player/player-evaluation-snapshots";
 import { canDeletePlayer, canEditPlayer, getCoachTeamIdSet } from "@/lib/rbac";
 import { getLeagues, getLocations, getTeamsForSelect } from "@/lib/data/reference";
 import { updatePlayerAction, deletePlayerAction } from "@/app/actions/players";
@@ -17,6 +18,7 @@ import {
 } from "@prisma/client";
 import { AgeGroupSelect } from "@/components/form/age-group-select";
 import { DobInput } from "@/components/form/dob-input";
+import { PlayerEvaluationHistoryBrowser } from "@/components/players/player-evaluation-history-browser";
 
 const evalOrder: EvaluationLevel[] = ["RL", "N1", "N2", "GRASSROOTS", "NOT_EVALUATED"];
 
@@ -30,6 +32,16 @@ export default async function PlayerProfilePage({ params }: Props) {
   if (!session) redirect("/login");
   const p = await getPlayerById(session, id);
   if (!p) notFound();
+
+  const evaluationSnapshots = await listPlayerEvaluationSnapshots(p.id);
+  const evaluationHistoryPickRows = evaluationSnapshots.map((h) => ({
+    id: h.id,
+    createdAtIso: h.createdAt.toISOString(),
+    evaluationLevel: h.evaluationLevel,
+    evaluationNotes: h.evaluationNotes,
+    byLabel:
+      h.authorCoach != null ? `${h.authorCoach.lastName}, ${h.authorCoach.firstName}` : null,
+  }));
 
   const coachTeamIds = await getCoachTeamIdSet(session);
   const playerAcl = {
@@ -110,6 +122,15 @@ export default async function PlayerProfilePage({ params }: Props) {
       </div>
 
       <div className="rounded border border-slate-200 bg-white p-3 text-sm">
+        <div className="text-xs text-slate-500">Coach notes</div>
+        {p.coachNotes?.trim() ? (
+          <p className="mt-2 whitespace-pre-wrap text-slate-800">{p.coachNotes}</p>
+        ) : (
+          <p className="mt-2 text-slate-500">None recorded.</p>
+        )}
+      </div>
+
+      <div className="rounded border border-slate-200 bg-white p-3 text-sm">
         <div className="text-xs text-slate-500">Latest evaluation</div>
         <p className="mt-1 font-medium">{formatEval(p.evaluationLevel)}</p>
         {p.evaluationNotes ? <p className="mt-2 whitespace-pre-wrap">{p.evaluationNotes}</p> : null}
@@ -122,6 +143,18 @@ export default async function PlayerProfilePage({ params }: Props) {
             : ""}
         </p>
       </div>
+
+      <PlayerEvaluationHistoryBrowser
+        currentLevel={p.evaluationLevel}
+        currentNotes={p.evaluationNotes}
+        currentByLabel={
+          p.evaluationAuthorCoach
+            ? `${p.evaluationAuthorCoach.lastName}, ${p.evaluationAuthorCoach.firstName}`
+            : null
+        }
+        currentDateIso={p.evaluationUpdatedAt?.toISOString() ?? null}
+        rows={evaluationHistoryPickRows}
+      />
 
       {showContact && p.contact && (
         <div className="rounded border border-slate-200 bg-slate-50 p-3 text-sm">
@@ -341,7 +374,17 @@ export default async function PlayerProfilePage({ params }: Props) {
             </label>
           </div>
           <label className="block space-y-1 text-sm">
-            <span>Notes</span>
+            <span>Coach notes (max 500 characters)</span>
+            <textarea
+              className="w-full rounded border border-slate-300 px-2 py-2"
+              defaultValue={p.coachNotes ?? ""}
+              maxLength={500}
+              name="coachNotes"
+              rows={3}
+            />
+          </label>
+          <label className="block space-y-1 text-sm">
+            <span>Evaluation notes</span>
             <textarea
               className="w-full rounded border border-slate-300 px-2 py-2"
               defaultValue={p.evaluationNotes ?? ""}

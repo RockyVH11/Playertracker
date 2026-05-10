@@ -37,6 +37,7 @@ export default async function TeamDetailPage({ params, searchParams }: SearchPro
   const sp = await searchParams;
   const error = typeof sp.error === "string" ? sp.error : null;
   const rosterAdded = sp.rosterAdded === "1";
+  const rosterNotesSaved = sp.rosterNotesSaved === "1";
   const pipelineRole =
     typeof sp.pipelineRole === "string" && ["primary", "secondary", "guest"].includes(sp.pipelineRole)
       ? sp.pipelineRole
@@ -109,6 +110,11 @@ export default async function TeamDetailPage({ params, searchParams }: SearchPro
         <div className="rounded border border-sky-200 bg-sky-50 px-3 py-2 text-sm text-sky-950">
           Player returned to the pool for this squad — roster rows are cleared (not marked &quot;not interested&quot;;
           lifecycle goes back toward available when they have no other active placements).
+        </div>
+      )}
+      {rosterNotesSaved && (
+        <div className="rounded border border-emerald-200 bg-emerald-50 px-3 py-2 text-sm text-emerald-900">
+          Coach notes and evaluation saved for that player.
         </div>
       )}
       {error && (
@@ -192,6 +198,7 @@ export default async function TeamDetailPage({ params, searchParams }: SearchPro
         teamId={team.id}
         poolPlayers={poolPlayers}
         canAddFromPool={rosterPermissionsResolved.canAddPlayersFromPool}
+        canEditRosterNotes={rosterPermissionsResolved.canAddPlayersFromPool}
       />
 
       <TeamAssistantCoachesSection

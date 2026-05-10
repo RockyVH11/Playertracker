@@ -1,3 +1,4 @@
+import type { Prisma } from "@prisma/client";
 import { StaffRole } from "@prisma/client";
 import { TeamPlayerPlacementStatus } from "@prisma/client";
 import { getServerEnv } from "@/lib/env";
@@ -131,30 +132,46 @@ export async function getTeamRosterSummary(teamId: string): Promise<TeamRosterSu
   };
 }
 
+const teamRosterPlacementInclude = {
+  player: {
+    select: {
+      id: true,
+      firstName: true,
+      lastName: true,
+      dob: true,
+      primaryPosition: true,
+      gender: true,
+      derivedAgeGroup: true,
+      overrideAgeGroup: true,
+      playerStatus: true,
+      coachNotes: true,
+      evaluationLevel: true,
+      evaluationNotes: true,
+      evaluationUpdatedAt: true,
+      evaluationAuthorCoach: {
+        select: { firstName: true, lastName: true },
+      },
+    },
+  },
+} satisfies Prisma.TeamPlayerPlacementInclude;
+
+export type TeamRosterPlacementRow = Prisma.TeamPlayerPlacementGetPayload<{
+  include: typeof teamRosterPlacementInclude;
+}>;
+
 /**
  * Active pipeline rows for the team page. Hides explicit coach **Decline** outcomes (`NOT_INTERESTED`).
  * Returning to pool removes rows by deletion instead of setting that status.
  */
-export async function listTeamPlacementsForTeam(teamId: string) {
+export async function listTeamPlacementsForTeam(
+  teamId: string
+): Promise<TeamRosterPlacementRow[]> {
   return prisma.teamPlayerPlacement.findMany({
     where: {
       teamId,
       status: { not: TeamPlayerPlacementStatus.NOT_INTERESTED },
     },
-    include: {
-      player: {
-        select: {
-          id: true,
-          firstName: true,
-          lastName: true,
-          primaryPosition: true,
-          gender: true,
-          derivedAgeGroup: true,
-          overrideAgeGroup: true,
-          playerStatus: true,
-        },
-      },
-    },
+    include: teamRosterPlacementInclude,
     orderBy: [{ player: { lastName: "asc" } }, { player: { firstName: "asc" } }],
   });
 }

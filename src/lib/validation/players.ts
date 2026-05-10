@@ -7,6 +7,16 @@ import {
   PlayerSource,
   PlayerStatus,
 } from "@prisma/client";
+
+const coachNotesField = z
+  .preprocess((v) => (v == null ? "" : String(v)), z.string())
+  .transform((s) => s.trim())
+  .pipe(
+    z
+      .string()
+      .max(500, "Coach notes must be at most 500 characters.")
+      .transform((t) => (t === "" ? null : t))
+  );
 import { isYouthAgeGroup } from "@/lib/data/age-groups";
 import { normalizeLegacyPlayerStatusQueryParam } from "@/lib/dashboard/legacy-player-status-query";
 
@@ -121,6 +131,7 @@ const playerCreateFieldsSchema = z
       .transform((s) => (s && s.trim().length > 0 ? s.trim() : null)),
     evaluationLevel: z.nativeEnum(EvaluationLevel),
     evaluationNotes: z.string().optional().nullable(),
+    coachNotes: coachNotesField,
     guardianName: z.string().optional().nullable(),
     guardianPhone: z.string().optional().nullable(),
     guardianEmail: z.string().optional().nullable(),

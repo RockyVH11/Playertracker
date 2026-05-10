@@ -1,6 +1,6 @@
 import type { Prisma } from "@prisma/client";
 import {
-  type EvaluationLevel,
+  EvaluationLevel,
   type Gender,
   type PlacementPriority,
   type PlayerPosition,
@@ -21,6 +21,16 @@ import {
   canDeletePlayer,
   getCoachTeamIdSet,
 } from "@/lib/rbac";
+import {
+  appendPlayerEvaluationSnapshot,
+  normalizeEvaluationNotesField,
+  playerEvaluationWasChanged,
+} from "@/lib/player/player-evaluation-snapshots";
+
+function normalizeCoachNotesField(raw: string | null | undefined): string | null {
+  const t = (raw ?? "").trim();
+  return t === "" ? null : t;
+}
 
 const playerListSelect = {
   id: true,
@@ -42,6 +52,7 @@ const playerListSelect = {
   playerSource: true,
   placementPriority: true,
   willingToPlayUp: true,
+  coachNotes: true,
   evaluationLevel: true,
   evaluationNotes: true,
   evaluationUpdatedAt: true,
@@ -80,6 +91,7 @@ export type PlayerListRow = {
   playerSource: PlayerSource;
   placementPriority: PlacementPriority;
   willingToPlayUp: boolean;
+  coachNotes: string | null;
   evaluationLevel: EvaluationLevel;
   evaluationNotes: string | null;
   evaluationUpdatedAt: Date | null;
@@ -145,6 +157,7 @@ function mapRow(
     playerSource: row.playerSource,
     placementPriority: row.placementPriority,
     willingToPlayUp: row.willingToPlayUp,
+    coachNotes: row.coachNotes ?? null,
     evaluationLevel: row.evaluationLevel,
     evaluationNotes: row.evaluationNotes,
     evaluationUpdatedAt: row.evaluationUpdatedAt,
@@ -382,6 +395,7 @@ export async function createPlayer(input: {
     overrideAgeGroup: string | null;
     evaluationLevel: EvaluationLevel;
     evaluationNotes: string | null;
+    coachNotes: string | null;
     contact: {
       guardianName: string | null;
       guardianPhone: string | null;
@@ -431,13 +445,26 @@ export async function createPlayer(input: {
       playerSource: input.data.playerSource,
       placementPriority: input.data.placementPriority,
       willingToPlayUp: input.data.willingToPlayUp,
+      coachNotes: normalizeCoachNotesField(input.data.coachNotes),
       evaluationLevel: input.data.evaluationLevel,
-      evaluationNotes: input.data.evaluationNotes,
+      evaluationNotes: normalizeEvaluationNotesField(input.data.evaluationNotes),
       evaluationAuthorCoachId: evCoachId,
       evaluationUpdatedAt: new Date(),
       createdByCoachId: createdByCoachId ?? null,
     },
   });
+  const createdHasEval =
+    created.evaluationLevel !== EvaluationLevel.NOT_EVALUATED ||
+    normalizeEvaluationNotesField(input.data.evaluationNotes) != null;
+  if (createdHasEval) {
+    await appendPlayerEvaluationSnapshot({
+      playerId: created.id,
+      evaluationLevel: created.evaluationLevel,
+      evaluationNotes: created.evaluationNotes,
+      authorCoachId: evCoachId,
+      authorUserId: null,
+    });
+  }
   if (input.data.contact) {
     await prisma.playerContact.create({
       data: {
@@ -483,6 +510,7 @@ export async function updatePlayer(input: {
     overrideAgeGroup: string | null;
     evaluationLevel: EvaluationLevel;
     evaluationNotes: string | null;
+    coachNotes: string | null;
     contact: {
       guardianName: string | null;
       guardianPhone: string | null;
@@ -531,6 +559,16 @@ export async function updatePlayer(input: {
     gender: input.data.gender,
     dob: input.data.dob,
   });
+  const nextEvalNotes = normalizeEvaluationNotesField(input.data.evaluationNotes);
+  const evalChanged = playerEvaluationWasChanged(
+    {
+      evaluationLevel: existing.evaluationLevel,
+      evaluationNotes: existing.evaluationNotes,
+    },
+    { evaluationLevel: input.data.evaluationLevel, evaluationNotes: nextEvalNotes }
+  );
+  const nextCoachNotes = normalizeCoachNotesField(input.data.coachNotes);
+
   await prisma.player.update({
     where: { id: input.id },
     data: {
@@ -550,14 +588,29 @@ export async function updatePlayer(input: {
       playerSource: input.data.playerSource,
       placementPriority: input.data.placementPriority,
       willingToPlayUp: input.data.willingToPlayUp,
+      coachNotes: nextCoachNotes,
       evaluationLevel: input.data.evaluationLevel,
-      evaluationNotes: input.data.evaluationNotes,
-      evaluationUpdatedAt: new Date(),
-      ...(isCoachSession(input.session)
-        ? { evaluationAuthorCoachId: input.session.coachId }
+      evaluationNotes: nextEvalNotes,
+      ...(evalChanged
+        ? {
+            evaluationUpdatedAt: new Date(),
+            ...(isCoachSession(input.session)
+              ? { evaluationAuthorCoachId: input.session.coachId }
+              : {}),
+          }
         : {}),
     },
   });
+
+  if (evalChanged) {
+    await appendPlayerEvaluationSnapshot({
+      playerId: input.id,
+      evaluationLevel: input.data.evaluationLevel,
+      evaluationNotes: nextEvalNotes,
+      authorCoachId: isCoachSession(input.session) ? input.session.coachId : null,
+      authorUserId: null,
+    });
+  }
 
   if (existing.assignedTeamId !== input.data.assignedTeamId) {
     await syncPrimaryPlacementFromAssignedTeamChange({
@@ -597,6 +650,83 @@ export async function updatePlayer(input: {
       });
     }
   }
+
+  revalidatePath(`/players/${input.id}`);
+  revalidatePath(`/players/${input.id}/profile`);
+  revalidatePath("/players");
+  const placementTeams = await prisma.teamPlayerPlacement.findMany({
+    where: { playerId: input.id },
+    select: { teamId: true },
+  });
+  const seenTeam = new Set<string>();
+  for (const r of placementTeams) {
+    if (seenTeam.has(r.teamId)) continue;
+    seenTeam.add(r.teamId);
+    revalidatePath(`/teams/${r.teamId}`);
+  }
+}
+
+/** Linkage to the team roster is enforced by the caller (e.g. team page action). */
+export async function updatePlayerCoachFieldsForLinkedTeamSheet(input: {
+  session: SessionPayload;
+  teamId: string;
+  playerId: string;
+  coachNotes: string | null;
+  evaluationLevel: EvaluationLevel;
+  evaluationNotes: string | null;
+}): Promise<void> {
+  const existing = await prisma.player.findFirst({
+    where: { id: input.playerId },
+    select: {
+      evaluationLevel: true,
+      evaluationNotes: true,
+    },
+  });
+  if (!existing) {
+    throw new Error("Player not found");
+  }
+
+  const nextEvalNotes = normalizeEvaluationNotesField(input.evaluationNotes);
+  const evalChanged = playerEvaluationWasChanged(
+    {
+      evaluationLevel: existing.evaluationLevel,
+      evaluationNotes: existing.evaluationNotes,
+    },
+    { evaluationLevel: input.evaluationLevel, evaluationNotes: nextEvalNotes }
+  );
+  const nextCoachNotes = normalizeCoachNotesField(input.coachNotes);
+
+  await prisma.player.update({
+    where: { id: input.playerId },
+    data: {
+      coachNotes: nextCoachNotes,
+      evaluationLevel: input.evaluationLevel,
+      evaluationNotes: nextEvalNotes,
+      ...(evalChanged
+        ? {
+            evaluationUpdatedAt: new Date(),
+            ...(isCoachSession(input.session)
+              ? { evaluationAuthorCoachId: input.session.coachId }
+              : {}),
+          }
+        : {}),
+    },
+  });
+
+  if (evalChanged) {
+    await appendPlayerEvaluationSnapshot({
+      playerId: input.playerId,
+      evaluationLevel: input.evaluationLevel,
+      evaluationNotes: nextEvalNotes,
+      authorCoachId: isCoachSession(input.session) ? input.session.coachId : null,
+      authorUserId: null,
+    });
+  }
+
+  revalidatePath(`/teams/${input.teamId}`);
+  revalidatePath(`/players/${input.playerId}`);
+  revalidatePath(`/players/${input.playerId}/profile`);
+  revalidatePath("/players");
 }
 
 export async function deletePlayer(input: {
