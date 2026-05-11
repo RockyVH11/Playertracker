@@ -1,9 +1,7 @@
 import Link from "next/link";
-import { PlayerPosition } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import { getEnv } from "@/lib/env";
-import { intakeCreatePlayerAction } from "@/app/actions/intake";
-import { DobInput } from "./dob-input";
+import { IntakePlayerForm } from "./intake-player-form";
 export const dynamic = "force-dynamic";
 
 type Props = {
@@ -56,97 +54,12 @@ export default async function OpenPracticeNewPage({ searchParams }: Props) {
         </div>
       ) : null}
 
-      <form action={intakeCreatePlayerAction} className="space-y-3 rounded border border-slate-200 bg-white p-4">
-        <input type="hidden" name="seasonLabel" value={env.DEFAULT_SEASON_LABEL} />
-        <input type="hidden" name="selectedLocationId" value={selectedLocationId} />
-        <div className="grid gap-3 sm:grid-cols-2">
-          <label className="block space-y-1 text-sm">
-            <span>First name</span>
-            <input name="firstName" required className="w-full rounded border border-slate-300 px-2 py-2" />
-          </label>
-          <label className="block space-y-1 text-sm">
-            <span>Last name</span>
-            <input name="lastName" required className="w-full rounded border border-slate-300 px-2 py-2" />
-          </label>
-          <label className="block space-y-1 text-sm">
-            <span>Date of birth</span>
-            <DobInput />
-          </label>
-          <label className="block space-y-1 text-sm">
-            <span>Gender</span>
-            <select name="gender" required className="w-full rounded border border-slate-300 px-2 py-2">
-              <option value="">Select</option>
-              <option value="BOYS">Boys</option>
-              <option value="GIRLS">Girls</option>
-            </select>
-          </label>
-          <label className="block space-y-1 text-sm">
-            <span>Pool location</span>
-            <select name="locationId" required defaultValue={selectedLocationId} className="w-full rounded border border-slate-300 px-2 py-2">
-              {locations.map((l) => <option key={l.id} value={l.id}>{l.name}</option>)}
-            </select>
-          </label>
-          <label className="block space-y-1 text-sm">
-            <span>League interest</span>
-            <select name="leagueInterestId" className="w-full rounded border border-slate-300 px-2 py-2">
-              <option value="">-</option>
-              {leagues.map((l) => <option key={l.id} value={l.id}>{l.name}</option>)}
-            </select>
-          </label>
-          <label className="block space-y-1 text-sm">
-            <span>Primary position</span>
-            <select name="primaryPosition" defaultValue={PlayerPosition.UNKNOWN} className="w-full rounded border border-slate-300 px-2 py-2">
-              {Object.values(PlayerPosition).map((p) => <option key={p} value={p}>{p}</option>)}
-            </select>
-          </label>
-          <label className="block space-y-1 text-sm">
-            <span>Secondary position</span>
-            <select name="secondaryPosition" defaultValue="" className="w-full rounded border border-slate-300 px-2 py-2">
-              <option value="">-</option>
-              {Object.values(PlayerPosition).map((p) => <option key={p} value={p}>{p}</option>)}
-            </select>
-          </label>
-        </div>
-        <fieldset className="rounded border border-slate-200 bg-slate-50/80 p-3">
-          <legend className="px-1 text-sm font-medium text-slate-800">Parent / guardian contact</legend>
-          <p className="mb-3 text-xs text-slate-600">Required so coaches can follow up after open practice.</p>
-          <div className="grid gap-3 sm:grid-cols-2">
-            <label className="block space-y-1 text-sm sm:col-span-2">
-              <span>Parent or guardian name</span>
-              <input
-                name="guardianName"
-                required
-                autoComplete="name"
-                className="w-full rounded border border-slate-300 px-2 py-2"
-              />
-            </label>
-            <label className="block space-y-1 text-sm">
-              <span>Parent phone</span>
-              <input
-                name="guardianPhone"
-                type="tel"
-                required
-                autoComplete="tel"
-                className="w-full rounded border border-slate-300 px-2 py-2"
-              />
-            </label>
-            <label className="block space-y-1 text-sm">
-              <span>Parent email</span>
-              <input
-                name="guardianEmail"
-                type="email"
-                required
-                autoComplete="email"
-                className="w-full rounded border border-slate-300 px-2 py-2"
-              />
-            </label>
-          </div>
-        </fieldset>
-        <div className="flex items-center gap-3">
-          <button type="submit" className="rounded bg-slate-900 px-4 py-2 text-sm text-white">Save player</button>
-          <Link href="/" className="rounded border border-slate-300 px-4 py-2 text-sm">Stop intake</Link>
-        </div>
-      </form>
+      <IntakePlayerForm
+        seasonLabel={env.DEFAULT_SEASON_LABEL}
+        selectedLocationId={selectedLocationId}
+        locations={locations}
+        leagues={leagues}
+      />
     </main>
   );
 }
