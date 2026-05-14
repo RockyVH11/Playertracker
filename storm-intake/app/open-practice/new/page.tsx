@@ -5,7 +5,7 @@ import { IntakePlayerForm } from "./intake-player-form";
 export const dynamic = "force-dynamic";
 
 type Props = {
-  searchParams?: Promise<{ error?: string; saved?: string; locationId?: string }>;
+  searchParams?: Promise<{ error?: string; saved?: string; updated?: string; locationId?: string }>;
 };
 
 export default async function OpenPracticeNewPage({ searchParams }: Props) {
@@ -13,6 +13,7 @@ export default async function OpenPracticeNewPage({ searchParams }: Props) {
   const sp = (await searchParams) ?? {};
   const error = sp.error ? decodeURIComponent(sp.error) : null;
   const saved = sp.saved === "1";
+  const updated = sp.updated === "1";
   const selectedLocationId = sp.locationId ? String(sp.locationId) : "";
 
   const [locations, leagues] = await Promise.all([
@@ -46,7 +47,9 @@ export default async function OpenPracticeNewPage({ searchParams }: Props) {
 
       {saved ? (
         <div className="rounded border border-emerald-300 bg-emerald-50 p-4">
-          <p className="text-sm font-medium text-emerald-900">Player saved. Add another?</p>
+          <p className="text-sm font-medium text-emerald-900">
+            {updated ? "Player profile updated. Add another?" : "Player saved. Add another?"}
+          </p>
           <div className="mt-3 flex gap-3">
             <Link href={`/open-practice/new?locationId=${encodeURIComponent(selectedLocationId)}`} className="rounded bg-slate-900 px-4 py-2 text-sm text-white">Yes</Link>
             <Link href="/open-practice/done" className="rounded border border-slate-300 px-4 py-2 text-sm">No</Link>
