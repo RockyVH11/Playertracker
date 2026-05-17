@@ -1,10 +1,23 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { formatDobDigits } from "@/lib/dob-format";
 
-export function DobInput() {
+type DobInputProps = {
+  /** When set, seeds the field once (e.g. edit existing player). */
+  initialMmDdYy?: string;
+};
+
+export function DobInput(props: DobInputProps) {
+  const { initialMmDdYy } = props;
   const [value, setValue] = useState("");
+  const [seeded, setSeeded] = useState(false);
+
+  useEffect(() => {
+    if (seeded || !initialMmDdYy?.trim()) return;
+    setValue(formatDobDigits(initialMmDdYy.replace(/\D/g, "")));
+    setSeeded(true);
+  }, [initialMmDdYy, seeded]);
 
   return (
     <input

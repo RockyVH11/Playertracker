@@ -4,6 +4,8 @@ const envSchema = z.object({
   DATABASE_URL: z.string().min(1),
   DEFAULT_SEASON_LABEL: z.string().regex(/^\d{4}-\d{4}$/).default("2026-2027"),
   MAIN_APP_URL: z.string().url().default("http://localhost:3000"),
+  /** Optional. If set (16+ chars), used to sign intake “edit existing player” links instead of deriving from DATABASE_URL. */
+  INTAKE_EDIT_SECRET: z.string().optional(),
 });
 
 let cached: z.infer<typeof envSchema> | null = null;
@@ -14,6 +16,7 @@ export function getEnv() {
     DATABASE_URL: process.env.DATABASE_URL,
     DEFAULT_SEASON_LABEL: process.env.DEFAULT_SEASON_LABEL,
     MAIN_APP_URL: process.env.MAIN_APP_URL,
+    INTAKE_EDIT_SECRET: process.env.INTAKE_EDIT_SECRET,
   });
   if (!parsed.success) {
     throw new Error(parsed.error.issues.map((i) => `${i.path.join(".")}: ${i.message}`).join("; "));
