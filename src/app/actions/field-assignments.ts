@@ -23,6 +23,7 @@ import {
   deleteFieldAssignmentSchema,
   moveFieldAssignmentFromWizardDragSchema,
   wizardDeleteFieldAssignmentSchema,
+  wizardUpdateFieldAssignmentSchema,
 } from "@/lib/validation/field-assignment";
 
 export type WizardDropResult =
@@ -38,6 +39,10 @@ export type WizardDeleteResult =
   | { ok: false; error: string };
 
 export type WizardMoveResult = { ok: true } | { ok: false; error: string };
+
+export type WizardUpdateResult =
+  | { ok: true; updatedCount: number }
+  | { ok: false; error: string };
 
 const err = fieldInfraErr;
 
@@ -602,4 +607,132 @@ export async function moveFieldAssignmentFromWizardDragAction(
   revalidatePath("/fields/schedule");
   revalidatePath("/fields/dashboard");
   return { ok: true };
+}
+
+export async function wizardUpdateFieldAssignmentAction(
+  formData: FormData
+): Promise<WizardUpdateResult> {
+  const v = await requireFieldInfraSession();
+  const parsed = wizardUpdateFieldAssignmentSchema.safeParse({
+    locationId: String(formData.get("locationId") ?? ""),
+    assignmentId: String(formData.get("assignmentId") ?? ""),
+    scope: String(formData.get("scope") ?? ""),
+    fieldId: String(formData.get("fieldId") ?? ""),
+    startTime: String(formData.get("startTime") ?? ""),
+    durationMinutes: String(formData.get("durationMinutes") ?? ""),
+  });
+  if (!parsed.success) {
+    return { ok: false, error: "Invalid update." };
+  }
+
+  if (
+    !canManageFieldComplexesForLocation(
+      v.session,
+      v.viewerStaffRole,
+      v.primaryLocationId,
+      parsed.data.locationId
+    )
+  ) {
+    return { ok: false, error: "Not authorized." };
+  }
+
+  const existing = await prisma.fieldAssignment.findFirst({
+    where: {
+      id: parsed.data.assignmentId,
+      field: { complex: { locationId: parsed.data.locationId } },
+    },
+    select: {
+      id: true,
+      teamId: true,
+      assignmentDate: true,
+      recurrenceGroupId: true,
+      rotationGroupId: true,
+    },
+  });
+  if (!existing) {
+    return { ok: false, error: "Session not found." };
+  }
+
+  if (existing.rotationGroupId) {
+    return {
+      ok: false,
+      error:
+        "This session is part of a rotating field schedule. Edit the rotation or remove the team from it first.",
+    };
+  }
+
+  const endTime = addMinutesToHm(parsed.data.startTime, parsed.data.durationMinutes);
+  if (!endTime) {
+    return { ok: false, error: "Invalid session length." };
+  }
+
+  const fieldRow = await prisma.field.findFirst({
+    where: { id: parsed.data.fieldId, complex: { locationId: parsed.data.locationId } },
+    select: { id: true },
+  });
+  if (!fieldRow) {
+    return { ok: false, error: "Field not found." };
+  }
+
+  const targets =
+    parsed.data.scope === "series" && existing.recurrenceGroupId
+      ? await prisma.fieldAssignment.findMany({
+          where: { recurrenceGroupId: existing.recurrenceGroupId },
+          select: { id: true, teamId: true, assignmentDate: true },
+        })
+      : [{ id: existing.id, teamId: existing.teamId, assignmentDate: existing.assignmentDate }];
+
+  if (parsed.data.scope === "series" && !existing.recurrenceGroupId) {
+    return {
+      ok: false,
+      error: "This session is not in a recurring group. Save this session only.",
+    };
+  }
+
+  let updatedCount = 0;
+  for (const row of targets) {
+    if (isPastDateYmd(formatYmdLocal(row.assignmentDate))) {
+      continue;
+    }
+    const peers = await prisma.fieldAssignment.findMany({
+      where: {
+        assignmentDate: row.assignmentDate,
+        field: { complex: { locationId: parsed.data.locationId } },
+        NOT: { id: row.id },
+      },
+      select: { id: true, fieldId: true, teamId: true, startTime: true, endTime: true },
+    });
+    const conflict = peerConflictMessage(peers, {
+      fieldId: parsed.data.fieldId,
+      teamId: row.teamId,
+      startTime: parsed.data.startTime,
+      endTime,
+    });
+    if (conflict) {
+      return { ok: false, error: conflict };
+    }
+
+    await prisma.fieldAssignment.update({
+      where: { id: row.id },
+      data: {
+        fieldId: parsed.data.fieldId,
+        startTime: parsed.data.startTime,
+        endTime,
+      },
+    });
+    updatedCount += 1;
+  }
+
+  if (updatedCount === 0) {
+    return { ok: false, error: "No sessions were updated (past dates are skipped)." };
+  }
+
+  await auditLog(v.session, "FieldAssignment", existing.id, "update", {
+    source: "wizard_edit",
+    scope: parsed.data.scope,
+    updatedCount,
+  });
+  revalidatePath("/fields/schedule");
+  revalidatePath("/fields/dashboard");
+  return { ok: true, updatedCount };
 }

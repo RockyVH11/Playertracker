@@ -211,6 +211,7 @@ export default async function FieldSchedulePage({ searchParams }: Props) {
     weeklyAssignmentCounts,
     openEquipmentReservations,
     equipmentCatalogItems,
+    fieldRotationGroups,
   ] = await Promise.all([
     prisma.complex.findMany({
       where: { isActive: true, locationId: selectedLocationId },
@@ -230,7 +231,14 @@ export default async function FieldSchedulePage({ searchParams }: Props) {
         assignmentDate: selectedDate,
         field: { complex: { locationId: selectedLocationId } },
       },
-      include: {
+      select: {
+        id: true,
+        recurrenceGroupId: true,
+        rotationGroupId: true,
+        fieldId: true,
+        startTime: true,
+        endTime: true,
+        notes: true,
         team: {
           select: {
             teamName: true,
@@ -341,6 +349,19 @@ export default async function FieldSchedulePage({ searchParams }: Props) {
         concurrentCapacity: true,
       },
       orderBy: { name: "asc" },
+    }),
+    prisma.fieldRotationGroup.findMany({
+      where: { complex: { locationId: selectedLocationId } },
+      include: {
+        members: {
+          orderBy: { slotIndex: "asc" },
+          include: {
+            team: { select: { ageGroup: true, gender: true } },
+            primaryField: { select: { name: true } },
+          },
+        },
+      },
+      orderBy: { createdAt: "desc" },
     }),
   ]);
 
@@ -595,6 +616,7 @@ export default async function FieldSchedulePage({ searchParams }: Props) {
           assignments={assignments.map((a) => ({
             id: a.id,
             recurrenceGroupId: a.recurrenceGroupId,
+            rotationGroupId: a.rotationGroupId,
             summaryLabel: wizardTeamLabel(
               a.team.gender,
               a.team.ageGroup,
@@ -605,6 +627,20 @@ export default async function FieldSchedulePage({ searchParams }: Props) {
             startTime: a.startTime,
             endTime: a.endTime,
           }))}
+          rotations={fieldRotationGroups
+            .filter((g) => g.complexId === selectedComplexId)
+            .map((g) => ({
+              id: g.id,
+              cadence: g.cadence,
+              startTime: g.startTime,
+              endTime: g.endTime,
+              daysOfWeek: g.daysOfWeek,
+              recurrenceEndDate: formatYmdLocal(g.recurrenceEndDate),
+              memberLabels: g.members.map(
+                (m) =>
+                  `${m.team.ageGroup} · ${m.primaryField.name}`
+              ),
+            }))}
           visibleSlotStarts={visibleSlotStarts}
           sessionLengthMinutes={sessionLengthMinutes}
           earlierHref={wizardQs(earlierWindowStart)}

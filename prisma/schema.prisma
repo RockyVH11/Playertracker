@@ -123,6 +123,13 @@ enum FieldRequestStatus {
   CANCELLED
 }
 
+enum FieldRotationCadence {
+  DAILY
+  WEEKLY
+  BIWEEKLY
+  MONTHLY
+}
+
 enum EquipmentReservationStatus {
   ACTIVE
   CANCELLED
@@ -193,6 +200,7 @@ model Complex {
   fields              Field[]
   availabilityWindows ComplexAvailability[]
   fieldBlackouts      FieldBlackout[]
+  fieldRotationGroups FieldRotationGroup[]
 
   @@index([locationId, isActive])
 }
@@ -212,6 +220,7 @@ model Field {
   fieldAssignments       FieldAssignment[]
   fieldBlackouts         FieldBlackout[]
   availabilityWindows    FieldAvailability[]
+  rotationMemberships    FieldRotationMember[] @relation("RotationMemberPrimaryField")
 
   @@index([complexId, isActive])
 }
@@ -286,6 +295,8 @@ model FieldAssignment {
   startTime          String
   endTime            String
   recurrenceGroupId  String?
+  rotationGroupId    String?
+  rotationGroup      FieldRotationGroup? @relation(fields: [rotationGroupId], references: [id], onDelete: SetNull)
   sourceRequestId    String?
   sourceRequest      FieldRequest? @relation("AssignmentFromFieldRequest", fields: [sourceRequestId], references: [id], onDelete: SetNull)
   /// Director notes ("south half only", lights off time, …).
@@ -298,7 +309,48 @@ model FieldAssignment {
   @@index([fieldId, assignmentDate])
   @@index([teamId, assignmentDate])
   @@index([recurrenceGroupId])
+  @@index([rotationGroupId])
   @@index([sourceRequestId])
+}
+
+/// Teams that share start time / weekdays and swap fields on a cadence (max 4 teams).
+model FieldRotationGroup {
+  id                String               @id @default(cuid())
+  seasonLabel       String
+  complexId         String
+  complex           Complex              @relation(fields: [complexId], references: [id], onDelete: Cascade)
+  cadence           FieldRotationCadence
+  startTime         String
+  endTime           String
+  daysOfWeek        DayOfWeek[]
+  anchorDate        DateTime             @db.Date
+  recurrenceEndDate DateTime             @db.Date
+  createdAt         DateTime             @default(now())
+  updatedAt         DateTime             @updatedAt
+
+  members     FieldRotationMember[]
+  assignments FieldAssignment[]
+
+  @@index([complexId, seasonLabel])
+}
+
+model FieldRotationMember {
+  id             String             @id @default(cuid())
+  groupId        String
+  group          FieldRotationGroup   @relation(fields: [groupId], references: [id], onDelete: Cascade)
+  teamId         String
+  team           Team               @relation(fields: [teamId], references: [id], onDelete: Restrict)
+  slotIndex      Int
+  primaryFieldId String
+  primaryField   Field              @relation("RotationMemberPrimaryField", fields: [primaryFieldId], references: [id], onDelete: Restrict)
+  /// When set, team leaves the rotation; future dates use primary field only for remaining teams.
+  memberEndDate  DateTime?          @db.Date
+  createdAt      DateTime           @default(now())
+  updatedAt      DateTime           @updatedAt
+
+  @@unique([groupId, teamId])
+  @@unique([groupId, slotIndex])
+  @@index([teamId])
 }
 
 model FieldBlackout {
@@ -422,6 +474,7 @@ model Team {
 
   fieldRequests           FieldRequest[]
   fieldAssignments        FieldAssignment[]
+  fieldRotationMemberships FieldRotationMember[]
   equipmentReservations   EquipmentReservation[]
 
   teamCoaches       TeamCoach[]

@@ -76,3 +76,14 @@ export const moveFieldAssignmentFromWizardDragSchema = z.object({
   assignmentDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "Use YYYY-MM-DD."),
   startTime: hmSchema,
 });
+
+export const wizardUpdateFieldAssignmentSchema = z.object({
+  locationId: z.string().cuid(),
+  assignmentId: z.string().cuid(),
+  scope: z.enum(["this", "series"]),
+  fieldId: z.string().cuid(),
+  startTime: hmSchema,
+  durationMinutes: z.coerce.number().int().refine((n) => n === 30 || n === 60 || n === 90, {
+    message: "Duration must be 30, 60, or 90 minutes.",
+  }),
+});
