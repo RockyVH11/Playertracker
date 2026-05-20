@@ -2,16 +2,15 @@
 
 import { DayOfWeek } from "@prisma/client";
 import Link from "next/link";
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { assignmentOverlapsSlot, slotCoveredByAvailabilityWindows } from "@/lib/fields/assignment-intervals";
-import { DAY_OF_WEEK_ORDER, dayOfWeekLabel } from "@/lib/fields/day-of-week-order";
-import {
-  createFieldAssignmentFromWizardDropAction,
-  createRecurringFieldAssignmentsAction,
-  moveFieldAssignmentFromWizardDragAction,
-  wizardDeleteFieldAssignmentAction,
-} from "@/app/actions/field-assignments";
+import { dayOfWeekLabel } from "@/lib/fields/day-of-week-order";
+import { createFieldAssignmentFromWizardDropAction, moveFieldAssignmentFromWizardDragAction } from "@/app/actions/field-assignments";
+import { WizardRotationPanel } from "@/components/fields/wizard-rotation-panel";
+import { WizardSessionDialog } from "@/components/fields/wizard-session-dialog";
+import { WizardTeamCard } from "@/components/fields/wizard-team-card";
+import { WizardTeamPlaceDialog } from "@/components/fields/wizard-team-place-dialog";
 import {
   createWizardEquipmentReservationOnAssignmentAction,
   reviewEquipmentReservationFromWizardAction,
@@ -56,11 +55,22 @@ type LocationOption = { id: string; name: string };
 type AssignmentChip = {
   id: string;
   recurrenceGroupId: string | null;
+  rotationGroupId: string | null;
   summaryLabel: string;
   fieldId: string;
   fieldName: string;
   startTime: string;
   endTime: string;
+};
+
+type RotationSummary = {
+  id: string;
+  cadence: string;
+  startTime: string;
+  endTime: string;
+  daysOfWeek: DayOfWeek[];
+  recurrenceEndDate: string;
+  memberLabels: string[];
 };
 
 type Props = {
@@ -89,6 +99,7 @@ type Props = {
   nextDayHref: string;
   prevWeekHref: string;
   nextWeekHref: string;
+  rotations: RotationSummary[];
 };
 
 function hmToDisplay(hm: string): string {
@@ -131,21 +142,17 @@ export function ScheduleWizard(props: Props) {
   const [busy, setBusy] = useState(false);
   const [feedback, setFeedback] = useState<{ kind: "ok" | "err"; text: string } | null>(null);
   const [menuAssignmentId, setMenuAssignmentId] = useState<string | null>(null);
-
-  const sessionDialogRef = useRef<HTMLDialogElement>(null);
-  const recurrenceFormRef = useRef<HTMLFormElement>(null);
+  const [placeTeam, setPlaceTeam] = useState<{ id: string; label: string } | null>(null);
 
   const now = new Date();
   const todayYmd = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}-${String(
     now.getDate()
   ).padStart(2, "0")}`;
 
-  const weekdayDefaults = useMemo(() => [props.selectedDow], [props.selectedDow]);
-
   const [genderFilter, setGenderFilter] = useState<"ALL" | "BOYS" | "GIRLS">("ALL");
   const [ageGroupFilter, setAgeGroupFilter] = useState<string>("ALL");
   const [unscheduledView, setUnscheduledView] = useState<
-    "pending" | "under2" | "allTeams" | "equipment"
+    "pending" | "under2" | "allTeams" | "equipment" | "rotation"
   >("pending");
 
   const ageGroups = useMemo(() => Array.from(new Set(props.teams.map((t) => t.ageGroup))).sort(), [props.teams]);
@@ -172,20 +179,6 @@ export function ScheduleWizard(props: Props) {
   const selectedAssignment = menuAssignmentId
     ? props.assignments.find((a) => a.id === menuAssignmentId)
     : null;
-
-  useEffect(() => {
-    const dlg = sessionDialogRef.current;
-    if (!dlg) return;
-    if (menuAssignmentId && selectedAssignment) {
-      try {
-        dlg.showModal();
-      } catch {
-        // already open
-      }
-    } else {
-      dlg.close();
-    }
-  }, [menuAssignmentId, selectedAssignment]);
 
   async function dropTeamOnSlot(fieldId: string, slot: string) {
     if (!dragTeamId) return;
@@ -229,58 +222,6 @@ export function ScheduleWizard(props: Props) {
       setFeedback({ kind: "err", text: res.error });
       return;
     }
-    router.refresh();
-  }
-
-  async function applyRecurrence(e: React.FormEvent<HTMLFormElement>) {
-    e.preventDefault();
-    if (!selectedAssignment) return;
-    const formEl = recurrenceFormRef.current;
-    if (!formEl) return;
-    setBusy(true);
-    setFeedback(null);
-    const fd = new FormData(formEl);
-    const res = await createRecurringFieldAssignmentsAction(fd);
-    setBusy(false);
-    if (!res.ok) {
-      setFeedback({ kind: "err", text: res.error });
-      return;
-    }
-    setFeedback({
-      kind: "ok",
-      text: `Recurring saved: ${res.createdCount} added, ${res.skippedCount} skipped.`,
-    });
-    setMenuAssignmentId(null);
-    router.refresh();
-  }
-
-  async function deleteSession(scope: "this" | "series") {
-    if (!selectedAssignment) return;
-    if (scope === "this") {
-      if (
-        typeof window !== "undefined" &&
-        !window.confirm("Remove this practice session only?")
-      )
-        return;
-    } else {
-      if (
-        typeof window !== "undefined" &&
-        !window.confirm("Delete EVERY session in this recurring group?")
-      )
-        return;
-    }
-    setBusy(true);
-    setFeedback(null);
-    const fd = new FormData();
-    fd.set("assignmentId", selectedAssignment.id);
-    fd.set("scope", scope);
-    const res = await wizardDeleteFieldAssignmentAction(fd);
-    setBusy(false);
-    if (!res.ok) {
-      setFeedback({ kind: "err", text: res.error });
-      return;
-    }
-    setMenuAssignmentId(null);
     router.refresh();
   }
 
@@ -332,8 +273,8 @@ export function ScheduleWizard(props: Props) {
         <div>
           <h2 className="text-sm font-semibold text-slate-900">Scheduling wizard</h2>
           <p className="text-xs text-slate-600">
-            Drag a team onto a cell to place a session · Drag open equipment onto a session block to
-            reserve it · Click a block to recur or delete.
+            Click a team to schedule (field, time, length) or drag ⋮⋮ onto a cell · Click a session
+            to edit · Use Rotation for swapping fields across teams.
           </p>
         </div>
         <a
@@ -543,6 +484,17 @@ export function ScheduleWizard(props: Props) {
             >
               Open equipment ({props.equipmentCatalog.length})
             </button>
+            <button
+              type="button"
+              onClick={() => setUnscheduledView("rotation")}
+              className={`rounded border px-2 py-1 text-left text-[11px] ${
+                unscheduledView === "rotation"
+                  ? "border-slate-900 bg-slate-900 text-white"
+                  : "border-slate-300 bg-white hover:bg-slate-100"
+              }`}
+            >
+              Rotation ({props.rotations.length})
+            </button>
           </div>
           <div className="mb-2 grid grid-cols-2 gap-2">
             <label className="text-[11px] text-slate-600">
@@ -667,11 +619,11 @@ export function ScheduleWizard(props: Props) {
                   .filter((team) => props.underScheduledTeams.some((u) => u.id === team.id))
                   .map((team) => {
                     const under2 = props.underScheduledTeams.find((u) => u.id === team.id);
+                    const label = `${team.ageGroup} · ${sexLabel(team.gender)}`;
                     return (
-                      <button
+                      <WizardTeamCard
                         key={team.id}
-                        type="button"
-                        draggable
+                        isDragging={dragTeamId === team.id}
                         onDragStart={() => {
                           setDragTeamId(team.id);
                           setDragAssignmentId(null);
@@ -681,20 +633,16 @@ export function ScheduleWizard(props: Props) {
                           setDragTeamId(null);
                           setHoverKey(null);
                         }}
-                        className={`w-full rounded border px-1.5 py-1 text-left text-[10px] leading-snug ${
-                          dragTeamId === team.id
-                            ? "border-sky-500 bg-sky-50"
-                            : "border-slate-300 bg-white hover:bg-slate-100"
-                        }`}
+                        onScheduleClick={() =>
+                          setPlaceTeam({ id: team.id, label: `${label} · ${coachName(team.coach)}` })
+                        }
                       >
-                        <div className="font-medium text-slate-900">
-                          {team.ageGroup} · {sexLabel(team.gender)}
-                        </div>
+                        <div className="font-medium text-slate-900">{label}</div>
                         <div className="truncate text-slate-600">{coachName(team.coach)}</div>
                         <div className="text-[9px] text-amber-700">
                           {under2?.assignmentCount ?? 0} session(s) this week
                         </div>
-                      </button>
+                      </WizardTeamCard>
                     );
                   })}
               </div>
@@ -706,32 +654,30 @@ export function ScheduleWizard(props: Props) {
                 Showing {filteredTeams.length} team{filteredTeams.length === 1 ? "" : "s"}
               </div>
               <div className="mt-2 grid grid-cols-2 gap-2">
-                {filteredTeams.map((team) => (
-                  <button
-                    key={team.id}
-                    type="button"
-                    draggable
-                    onDragStart={() => {
-                      setDragTeamId(team.id);
-                      setDragAssignmentId(null);
-                      setDragEquipmentItemId(null);
-                    }}
-                    onDragEnd={() => {
-                      setDragTeamId(null);
-                      setHoverKey(null);
-                    }}
-                    className={`w-full rounded border px-1.5 py-1 text-left text-[10px] leading-snug ${
-                      dragTeamId === team.id
-                        ? "border-sky-500 bg-sky-50"
-                        : "border-slate-300 bg-white hover:bg-slate-100"
-                    }`}
-                  >
-                    <div className="font-medium text-slate-900">
-                      {team.ageGroup} · {sexLabel(team.gender)}
-                    </div>
-                    <div className="truncate text-slate-600">{coachName(team.coach)}</div>
-                  </button>
-                ))}
+                {filteredTeams.map((team) => {
+                  const label = `${team.ageGroup} · ${sexLabel(team.gender)}`;
+                  return (
+                    <WizardTeamCard
+                      key={team.id}
+                      isDragging={dragTeamId === team.id}
+                      onDragStart={() => {
+                        setDragTeamId(team.id);
+                        setDragAssignmentId(null);
+                        setDragEquipmentItemId(null);
+                      }}
+                      onDragEnd={() => {
+                        setDragTeamId(null);
+                        setHoverKey(null);
+                      }}
+                      onScheduleClick={() =>
+                        setPlaceTeam({ id: team.id, label: `${label} · ${coachName(team.coach)}` })
+                      }
+                    >
+                      <div className="font-medium text-slate-900">{label}</div>
+                      <div className="truncate text-slate-600">{coachName(team.coach)}</div>
+                    </WizardTeamCard>
+                  );
+                })}
               </div>
             </>
           ) : null}
@@ -780,6 +726,22 @@ export function ScheduleWizard(props: Props) {
                 </ul>
               )}
             </div>
+          ) : null}
+          {unscheduledView === "rotation" ? (
+            <WizardRotationPanel
+              locationId={props.locationId}
+              complexId={props.selectedComplexId}
+              selectedDate={props.selectedDate}
+              teams={filteredTeams}
+              fields={props.fields.map((f) => ({ id: f.id, name: f.name }))}
+              slotStarts={props.visibleSlotStarts}
+              defaultDurationMinutes={props.sessionLengthMinutes}
+              rotations={props.rotations}
+              busy={busy}
+              onBusy={setBusy}
+              onFeedback={setFeedback}
+              onSuccess={() => router.refresh()}
+            />
           ) : null}
         </aside>
 
@@ -921,111 +883,47 @@ export function ScheduleWizard(props: Props) {
         )}
       </div>
 
-      <dialog
-        ref={sessionDialogRef}
-        className="w-full max-w-md rounded border border-slate-300 p-0 backdrop:bg-black/20"
+      <WizardTeamPlaceDialog
+        open={placeTeam !== null}
+        teamLabel={placeTeam?.label ?? ""}
+        teamId={placeTeam?.id ?? ""}
+        locationId={props.locationId}
+        complexId={props.selectedComplexId}
+        assignmentDate={props.selectedDate}
+        windowStart={props.windowStart}
+        defaultDurationMinutes={props.sessionLengthMinutes}
+        fields={props.fields.map((f) => ({ id: f.id, name: f.name }))}
+        slotStarts={props.visibleSlotStarts}
+        defaultFieldId={props.fields[0]?.id ?? ""}
+        busy={busy}
+        onClose={() => setPlaceTeam(null)}
+        onBusy={setBusy}
+        onFeedback={setFeedback}
+        onSuccess={() => {
+          setPlaceTeam(null);
+          router.refresh();
+        }}
+      />
+
+      <WizardSessionDialog
+        open={menuAssignmentId !== null}
+        assignment={selectedAssignment ?? null}
+        locationId={props.locationId}
+        complexId={props.selectedComplexId}
+        selectedDate={props.selectedDate}
+        selectedDow={props.selectedDow}
+        windowStart={props.windowStart}
+        sessionLengthMinutes={props.sessionLengthMinutes}
+        fields={props.fields.map((f) => ({ id: f.id, name: f.name }))}
+        slotStarts={props.visibleSlotStarts}
+        defaultRecurrenceEndYmd={defaultRecurrenceEndYmd}
+        busy={busy}
+        closeHref={`/fields/schedule?${wizardUrlQuery(props)}`}
         onClose={() => setMenuAssignmentId(null)}
-      >
-        {selectedAssignment ? (
-          <>
-            <div className="border-b border-slate-200 px-4 py-3">
-              <h3 className="text-sm font-semibold text-slate-900">Session</h3>
-              <p className="mt-1 text-sm text-slate-800">{selectedAssignment.summaryLabel}</p>
-              <p className="mt-1 text-xs text-slate-600">
-                {selectedAssignment.fieldName} · {hmToDisplay(selectedAssignment.startTime)}–
-                {hmToDisplay(selectedAssignment.endTime)}
-              </p>
-            </div>
-            <form
-              key={selectedAssignment.id}
-              ref={recurrenceFormRef}
-              onSubmit={applyRecurrence}
-              className="space-y-3 border-b border-slate-200 p-4"
-            >
-              <input type="hidden" name="locationId" value={props.locationId} />
-              <input type="hidden" name="complexId" value={props.selectedComplexId} />
-              <input type="hidden" name="assignmentId" value={selectedAssignment.id} />
-              <input type="hidden" name="baseDate" value={props.selectedDate} />
-              <input type="hidden" name="windowStart" value={props.windowStart} />
-              <input type="hidden" name="durationMinutes" value={String(props.sessionLengthMinutes)} />
-              <div className="text-xs font-semibold text-slate-800">Duplicate to future dates</div>
-              <div className="text-xs text-slate-600">
-                Adds the same slot on selected weekdays until the end date (skips conflicts). Also
-                links sessions so you can delete the whole series later.
-              </div>
-              <div className="flex flex-col gap-1">
-                <label htmlFor="endDate" className="text-xs font-medium text-slate-700">
-                  End date
-                </label>
-                <input
-                  id="endDate"
-                  name="endDate"
-                  type="date"
-                  min={props.selectedDate}
-                  defaultValue={defaultRecurrenceEndYmd}
-                  className="rounded border border-slate-300 px-2 py-2 text-sm"
-                />
-              </div>
-              <fieldset>
-                <legend className="text-xs font-medium text-slate-700">Weekdays to add</legend>
-                <div className="mt-1 grid grid-cols-2 gap-2 text-sm">
-                  {DAY_OF_WEEK_ORDER.map((d: DayOfWeek) => (
-                    <label key={d} className="inline-flex items-center gap-2">
-                      <input
-                        type="checkbox"
-                        name="weekdays"
-                        value={d}
-                        defaultChecked={weekdayDefaults.includes(d)}
-                      />
-                      {dayOfWeekLabel(d)}
-                    </label>
-                  ))}
-                </div>
-              </fieldset>
-              <button
-                type="submit"
-                disabled={busy}
-                className="w-full rounded bg-slate-900 px-3 py-2 text-sm font-medium text-white hover:bg-slate-800 disabled:opacity-70"
-              >
-                Apply duplication
-              </button>
-            </form>
-            <div className="space-y-2 p-4">
-              <button
-                type="button"
-                disabled={busy}
-                onClick={() => void deleteSession("this")}
-                className="w-full rounded border border-red-300 bg-red-50 px-3 py-2 text-sm font-medium text-red-900 hover:bg-red-100 disabled:opacity-70"
-              >
-                Delete this session
-              </button>
-              <button
-                type="button"
-                disabled={busy || !selectedAssignment.recurrenceGroupId}
-                onClick={() => void deleteSession("series")}
-                className={`w-full rounded border px-3 py-2 text-sm font-medium disabled:opacity-50 ${
-                  selectedAssignment.recurrenceGroupId
-                    ? "border-red-400 bg-red-600 text-white hover:bg-red-700"
-                    : "cursor-not-allowed border-slate-200 bg-slate-100 text-slate-500"
-                }`}
-              >
-                Delete all in recurring group
-              </button>
-              {!selectedAssignment.recurrenceGroupId ? (
-                <p className="text-[11px] text-slate-500">
-                  Turn on “Apply duplication” first to group sessions, or delete this session only.
-                </p>
-              ) : null}
-              <a
-                href={`/fields/schedule?${wizardUrlQuery(props)}`}
-                className="block w-full rounded border border-slate-300 py-2 text-center text-sm hover:bg-slate-50"
-              >
-                Close
-              </a>
-            </div>
-          </>
-        ) : null}
-      </dialog>
+        onBusy={setBusy}
+        onFeedback={setFeedback}
+        onSuccess={() => router.refresh()}
+      />
     </section>
   );
 }
